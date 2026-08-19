@@ -10,7 +10,12 @@ a host FastAPI app with its own routes mounts `create_app(Settings())` as a sub-
 # (rate limiting, pruning, caching). The app boots fine without it.
 docker compose up -d
 
-export GATEWAY_GEMINI_UPSTREAM_KEY=your-real-or-placeholder-key
+export GATEWAY_GEMINI_UPSTREAM_KEY=your-real-gemini-key
+
+# Maps gateway-issued keys (what clients send in x-gateway-api-key) to a
+# tenant id. Required — with no entries, every request gets 401.
+export GATEWAY_TENANT_API_KEYS='{"my-gateway-key":"local-dev"}'
+
 uv run uvicorn examples.library_mount.app:app --app-dir . --reload
 ```
 
@@ -21,7 +26,8 @@ curl http://localhost:8000/                # the host app's own route
 curl http://localhost:8000/gateway/healthz # the mounted gateway
 ```
 
-`GET /gateway/gemini-2.5-flash:streamGenerateContent` behaves exactly like the
+`POST /gateway/v1/gemini-2.5-flash:streamGenerateContent` (with an
+`x-gateway-api-key: my-gateway-key` header) behaves exactly like the
 standalone gateway (see the [tutorial](../../docs/tutorial/first-request.md)) —
 it just lives under a `/gateway` prefix here instead of at the root.
 
