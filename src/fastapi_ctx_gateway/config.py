@@ -45,6 +45,10 @@ class Settings(BaseSettings):
 
     token_budgets: TokenBudgetConfig = TokenBudgetConfig()
 
+    # Maps gateway-issued API keys to tenant ids. Static config for now;
+    # swap for a Redis-backed lookup once onboarding needs to be dynamic.
+    tenant_api_keys: dict[str, str] = {}
+
     embedding_model_path: Path = Path("models/embedding.onnx")
 
     rpm_limit: int = 60

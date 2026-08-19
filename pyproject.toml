@@ -57,7 +57,9 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "D"]
-ignore = ["D203", "D213"]
+# B008: FastAPI's Depends()-as-default is the idiomatic pattern, not the
+# mutable-default-argument footgun this rule targets.
+ignore = ["D203", "D213", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D"]
