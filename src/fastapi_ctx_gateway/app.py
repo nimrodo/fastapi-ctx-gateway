@@ -4,10 +4,13 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx
+import redis.asyncio as redis_asyncio
 from fastapi import FastAPI
 
 from fastapi_ctx_gateway.config import Settings
+from fastapi_ctx_gateway.errors import register_exception_handlers
 from fastapi_ctx_gateway.proxy.client import GeminiClient
+from fastapi_ctx_gateway.ratelimit import RateLimiter
 from fastapi_ctx_gateway.routers.generate import router as generate_router
 
 __all__ = ["create_app"]
@@ -27,18 +30,30 @@ def create_app(settings: Settings) -> FastAPI:
         # Built once per app instance and shared across all requests via
         # app.state — never per-request (connection setup cost alone would
         # blow the latency budget if paid on every call).
+        redis_client = redis_asyncio.from_url(settings.redis_url, decode_responses=False)
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             app.state.http_client = http_client
+            app.state.redis_client = redis_client
             app.state.gemini_client = GeminiClient(
                 http_client=http_client,
                 api_key=settings.gemini_upstream_key.get_secret_value(),
                 base_url=settings.gemini_base_url,
             )
-            yield
+            app.state.rate_limiter = RateLimiter(
+                redis_client=redis_client,
+                rpm_limit=settings.rpm_limit,
+                tpm_limit=settings.tpm_limit,
+                window_s=settings.rate_limit_window_s,
+            )
+            try:
+                yield
+            finally:
+                await redis_client.aclose()
 
     app = FastAPI(title="fastapi-ctx-gateway", lifespan=lifespan)
     app.state.settings = settings
     app.include_router(generate_router)
+    register_exception_handlers(app)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
