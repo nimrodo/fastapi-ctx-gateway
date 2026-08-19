@@ -2,6 +2,8 @@
 
 The gateway is configured entirely through environment variables, prefixed `GATEWAY_`, loaded via [`Settings`][fastapi_ctx_gateway.config.Settings] (a `pydantic-settings` model). A `.env` file in the working directory is picked up automatically.
 
+Copy the repo's [`.env.example`](https://github.com/nimrodo/fastapi-ctx-gateway/blob/main/.env.example) to `.env` and fill in real values as a starting point — it lists every variable below with the required ones at the top. `.env` itself is gitignored, so it's safe to put real keys in it.
+
 ## Required
 
 ```bash

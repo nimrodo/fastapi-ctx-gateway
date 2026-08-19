@@ -18,9 +18,8 @@ All shared state (rate limits, semantic cache) lives in Redis — the gateway it
 ```bash
 uv sync
 docker compose up -d redis          # Redis Stack (RediSearch/VSS module)
-GATEWAY_GEMINI_UPSTREAM_KEY=<your-gemini-api-key> \
-GATEWAY_TENANT_API_KEYS='{"some-gateway-key": "your-tenant-id"}' \
-  uv run fastapi-ctx-gateway
+cp .env.example .env                # then fill in GATEWAY_GEMINI_UPSTREAM_KEY and GATEWAY_TENANT_API_KEYS
+uv run fastapi-ctx-gateway
 ```
 
 The server listens on `:8000` by default. Point a client at `POST /v1/{provider}/{model}:streamGenerateContent` (e.g. `/v1/gemini/gemini-3.7-flash:streamGenerateContent`) with header `x-gateway-api-key: some-gateway-key` and the gateway's own neutral request body — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md).
@@ -41,7 +40,7 @@ A runnable example of mounting the gateway inside a host app lives in [`examples
 
 ## Configuration
 
-All settings are environment variables prefixed `GATEWAY_` (or a `.env` file). Nested fields like `token_budgets` accept JSON.
+All settings are environment variables prefixed `GATEWAY_` (or a `.env` file — see [`.env.example`](.env.example) for a starting point). Nested fields like `token_budgets` accept JSON.
 
 | Variable | Default | Notes |
 |---|---|---|

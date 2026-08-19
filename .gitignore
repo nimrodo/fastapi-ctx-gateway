@@ -11,3 +11,6 @@ wheels/
 
 # MkDocs build output
 /site/
+
+# Local environment overrides
+.env
