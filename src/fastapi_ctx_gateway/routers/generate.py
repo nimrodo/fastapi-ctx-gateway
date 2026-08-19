@@ -9,9 +9,10 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from fastapi_ctx_gateway.auth import Tenant, verify_api_key
-from fastapi_ctx_gateway.deps import get_gemini_client, get_rate_limiter
+from fastapi_ctx_gateway.deps import get_gemini_client, get_pruner, get_rate_limiter
 from fastapi_ctx_gateway.proxy.client import GeminiClient
 from fastapi_ctx_gateway.proxy.streaming import StreamAccumulator, tee_stream
+from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter, RateLimitExceeded, TokenEstimator
 from fastapi_ctx_gateway.schemas.gemini import GenerateContentRequest
 
@@ -26,12 +27,15 @@ async def stream_generate_content(
     tenant: Tenant = Depends(verify_api_key),
     gemini_client: GeminiClient = Depends(get_gemini_client),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
+    pruner: TokenBudgetPruner = Depends(get_pruner),
 ) -> StreamingResponse:
     """Proxy a streaming generate request through to Gemini.
 
-    Sequenced deliberately: auth -> rate-limit check -> proxy. A rejected
-    request never reaches the (cheap-but-not-free) estimation-adjacent
-    work of later milestones (pruning, cache lookup), let alone Gemini.
+    Sequenced deliberately: auth -> rate-limit check -> prune -> proxy. A
+    rejected request never reaches pruning or the (later milestone) cache
+    lookup, let alone Gemini. Admission control is checked against the
+    client's original, unpruned token estimate — pruning happens only
+    after a request has already been admitted.
     """
     rate_limit_key = f"{tenant.api_key}:{model}"
     estimated_tokens = _token_estimator.estimate(
@@ -40,6 +44,12 @@ async def stream_generate_content(
     decision = await rate_limiter.check(rate_limit_key, estimated_tokens)
     if not decision.allowed:
         raise RateLimitExceeded(decision)
+
+    prune_result = pruner.prune(
+        contents=request.contents, system_instruction=request.system_instruction, model=model
+    )
+    if prune_result.pruned:
+        request = request.model_copy(update={"contents": prune_result.contents})
 
     accumulator = StreamAccumulator()
     upstream = gemini_client.stream_generate(model, request)

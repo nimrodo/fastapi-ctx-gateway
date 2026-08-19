@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import register_exception_handlers
 from fastapi_ctx_gateway.proxy.client import GeminiClient
+from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter
 from fastapi_ctx_gateway.routers.generate import router as generate_router
 
@@ -45,6 +46,7 @@ def create_app(settings: Settings) -> FastAPI:
                 tpm_limit=settings.tpm_limit,
                 window_s=settings.rate_limit_window_s,
             )
+            app.state.pruner = TokenBudgetPruner(settings.token_budgets)
             try:
                 yield
             finally:
