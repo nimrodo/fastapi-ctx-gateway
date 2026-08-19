@@ -28,7 +28,7 @@ app = create_app(Settings())
 ```
 
 ```bash
-curl -X POST http://localhost:8000/v1/gemini-2.5-flash:streamGenerateContent \
+curl -X POST http://localhost:8000/v1/gemini-3.7-flash:streamGenerateContent \
   -H "x-gateway-api-key: your-gateway-key" \
   -H "Content-Type: application/json" \
   -d '{"contents": [{"role": "user", "parts": [{"text": "Hello!"}]}]}'

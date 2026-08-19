@@ -10,7 +10,7 @@ Every request is checked against a token (TPM) and request (RPM) budget, keyed b
 4. If admitted and the request succeeds, the counter is **reconciled** afterward against Gemini's real `usageMetadata` — the estimate was only ever provisional.
 
 ```bash
-curl -i -X POST http://localhost:8000/v1/gemini-2.5-flash:streamGenerateContent \
+curl -i -X POST http://localhost:8000/v1/gemini-3.7-flash:streamGenerateContent \
   -H "x-gateway-api-key: my-gateway-key" -d '{"contents": []}'
 # HTTP/1.1 429 Too Many Requests
 # Retry-After: 12

@@ -48,7 +48,7 @@ pruner = TokenBudgetPruner(TokenBudgetConfig(default=1000))
 result = pruner.prune(
     contents=[Content(role="user", parts=[Part(text="hi")])],
     system_instruction=None,
-    model="gemini-2.5-flash",
+    model="gemini-3.7-flash",
 )
 print(result.pruned, result.dropped_turn_count)
 ```

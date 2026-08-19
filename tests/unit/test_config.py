@@ -37,7 +37,7 @@ def test_settings_requires_tenant_api_keys(monkeypatch) -> None:
 
 def test_token_budget_config_known_model() -> None:
     config = TokenBudgetConfig()
-    assert config.budget_for("gemini-2.5-flash") == 32_000
+    assert config.budget_for("gemini-3.7-flash") == 32_000
     assert config.budget_for("gemini-2.5-pro") == 64_000
 
 

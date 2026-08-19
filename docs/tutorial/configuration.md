@@ -16,7 +16,7 @@ GATEWAY_TENANT_API_KEYS='{"<gateway-issued-key>": "<tenant-id>"}'
 Fields like `token_budgets` accept JSON directly:
 
 ```bash
-GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-2.5-flash": 32000, "gemini-2.5-pro": 64000}, "default": 16000}'
+GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-3.7-flash": 32000, "gemini-2.5-pro": 64000}, "default": 16000}'
 ```
 
 ## Full reference

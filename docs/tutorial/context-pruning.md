@@ -14,7 +14,7 @@ Both operations only ever look at `text` parts — non-text parts (images, audio
 ## Per-model budgets
 
 ```bash
-GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-2.5-flash": 32000, "gemini-2.5-pro": 64000}, "default": 16000}'
+GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-3.7-flash": 32000, "gemini-2.5-pro": 64000}, "default": 16000}'
 ```
 
 These are deliberately conservative relative to each model's *real* context window — they exist to trigger pruning early enough to matter for latency and cache-key stability, not to guard against a hard context-window overflow.

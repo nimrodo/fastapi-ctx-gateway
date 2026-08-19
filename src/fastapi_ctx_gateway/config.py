@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 __all__ = ["Settings", "TokenBudgetConfig"]
 
 _DEFAULT_MODEL_TOKEN_BUDGETS: dict[str, int] = {
-    "gemini-2.5-flash": 32_000,
+    "gemini-3.7-flash": 32_000,
     "gemini-2.5-pro": 64_000,
 }
 

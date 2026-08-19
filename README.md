@@ -54,7 +54,7 @@ All settings are environment variables prefixed `GATEWAY_` (or a `.env` file). N
 | `GATEWAY_CACHE_TTL_S` | `3600` | Cache entry TTL |
 | `GATEWAY_CACHE_TEMPERATURE_THRESHOLD` | `0.3` | Requests above this (or with `temperature` unset) bypass the cache |
 | `GATEWAY_CACHE_LOOKUP_TIMEOUT_MS` | `50` | Bounds the fail-open path if Redis is slow/down |
-| `GATEWAY_TOKEN_BUDGETS` | `{"gemini-2.5-flash": 32000, "gemini-2.5-pro": 64000}` | Per-model pruning-trigger caps; `default` key sets the fallback |
+| `GATEWAY_TOKEN_BUDGETS` | `{"gemini-3.7-flash": 32000, "gemini-2.5-pro": 64000}` | Per-model pruning-trigger caps; `default` key sets the fallback |
 | `GATEWAY_RPM_LIMIT` / `GATEWAY_TPM_LIMIT` | `60` / `100000` | Per tenant+model, per `GATEWAY_RATE_LIMIT_WINDOW_S` |
 | `GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5` | Consecutive failures before the breaker opens |
 | `GATEWAY_CIRCUIT_BREAKER_RESET_TIMEOUT_S` | `30.0` | Time before a half-open trial request |

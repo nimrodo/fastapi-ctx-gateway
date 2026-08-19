@@ -11,7 +11,7 @@ If Gemini itself is failing, hammering it with every incoming request just makes
 - **`HALF_OPEN`** — after `GATEWAY_CIRCUIT_BREAKER_RESET_TIMEOUT_S`, a single trial request is allowed through. Success closes the circuit; failure reopens it immediately.
 
 ```bash
-curl -i -X POST http://localhost:8000/v1/gemini-2.5-flash:streamGenerateContent \
+curl -i -X POST http://localhost:8000/v1/gemini-3.7-flash:streamGenerateContent \
   -H "x-gateway-api-key: my-gateway-key" -d '{"contents": [...]}'
 # HTTP/1.1 503 Service Unavailable   (only while the breaker is open)
 ```

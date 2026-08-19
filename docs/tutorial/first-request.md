@@ -11,7 +11,7 @@ The gateway proxies Gemini's own `streamGenerateContent` wire schema unchanged â
 
     ```bash
     curl -N -X POST \
-      http://localhost:8000/v1/gemini-2.5-flash:streamGenerateContent \
+      http://localhost:8000/v1/gemini-3.7-flash:streamGenerateContent \
       -H "x-gateway-api-key: my-gateway-key" \
       -H "Content-Type: application/json" \
       -d '{
@@ -28,7 +28,7 @@ The gateway proxies Gemini's own `streamGenerateContent` wire schema unchanged â
 
     with httpx.stream(
         "POST",
-        "http://localhost:8000/v1/gemini-2.5-flash:streamGenerateContent",
+        "http://localhost:8000/v1/gemini-3.7-flash:streamGenerateContent",
         headers={"x-gateway-api-key": "my-gateway-key"},
         json={
             "contents": [
@@ -54,7 +54,7 @@ Every response carries an `X-Cache` header:
 ## Missing or invalid key
 
 ```bash
-curl -i -X POST http://localhost:8000/v1/gemini-2.5-flash:streamGenerateContent \
+curl -i -X POST http://localhost:8000/v1/gemini-3.7-flash:streamGenerateContent \
   -d '{"contents": []}'
 # HTTP/1.1 401 Unauthorized
 ```
