@@ -29,7 +29,11 @@ curl http://localhost:8000/gateway/healthz # the mounted gateway
 `POST /gateway/v1/gemini-2.5-flash:streamGenerateContent` (with an
 `x-gateway-api-key: my-gateway-key` header) behaves exactly like the
 standalone gateway (see the [tutorial](../../docs/tutorial/first-request.md)) —
-it just lives under a `/gateway` prefix here instead of at the root.
+it just lives under a `/gateway` prefix here instead of at the root. With a
+placeholder `GATEWAY_GEMINI_UPSTREAM_KEY` you'll get a proxied `400` from
+Gemini itself as an SSE error event, not a gateway error — that means
+everything up to the upstream call is working; use a real key to see an
+actual generation.
 
 ## OpenAPI docs
 
