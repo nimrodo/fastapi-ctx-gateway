@@ -1,11 +1,11 @@
 """Tees a raw Gemini SSE byte stream to the client while accumulating text."""
 
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["StreamAccumulator", "tee_stream"]
+__all__ = ["StreamAccumulator", "stream_with_retry", "tee_stream"]
 
 
 @dataclass
@@ -79,3 +79,36 @@ async def tee_stream(
         aclose = getattr(upstream, "aclose", None)
         if aclose is not None:
             await aclose()
+
+
+def _terminal_error_event(message: str) -> bytes:
+    payload = {"error": {"message": message, "code": 502}}
+    return f"data: {json.dumps(payload)}\n\n".encode()
+
+
+async def stream_with_retry(
+    open_stream: Callable[[], AsyncIterator[bytes]],
+    accumulator: StreamAccumulator,
+    max_retries: int = 1,
+) -> AsyncIterator[bytes]:
+    """Open a stream, retrying once (no backoff) only if it fails before any bytes are sent.
+
+    A failure after bytes have already reached the client is never
+    retried — the client may have partially rendered a response, and
+    starting over risks duplicate or corrupted output. Either way, once
+    retries are exhausted (or immediately, if bytes already streamed), a
+    terminal SSE error event is yielded so the client gets a clean signal
+    rather than an abruptly closed connection. This function never raises.
+    """
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            async for chunk in tee_stream(open_stream(), accumulator):
+                yield chunk
+            return
+        except Exception as exc:
+            if not accumulator.bytes_streamed and attempts <= max_retries:
+                continue
+            yield _terminal_error_event(str(exc))
+            return

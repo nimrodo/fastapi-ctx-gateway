@@ -25,7 +25,7 @@ from fastapi_ctx_gateway.deps import (
 from fastapi_ctx_gateway.observability.metrics import Metrics
 from fastapi_ctx_gateway.observability.tracing import hit_path_span, pre_proxy_span
 from fastapi_ctx_gateway.proxy.client import GeminiClient
-from fastapi_ctx_gateway.proxy.streaming import StreamAccumulator, tee_stream
+from fastapi_ctx_gateway.proxy.streaming import StreamAccumulator, stream_with_retry
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter, RateLimitExceeded, TokenEstimator
 from fastapi_ctx_gateway.schemas.gemini import Content, GenerateContentRequest, Part
@@ -96,9 +96,8 @@ async def stream_generate_content(
 
     metrics.cache_miss.inc()
     accumulator = StreamAccumulator()
-    upstream = gemini_client.stream_generate(model, request)
     body = _stream_and_finalize(
-        upstream=upstream,
+        open_stream=lambda: gemini_client.stream_generate(model, request),
         accumulator=accumulator,
         rate_limiter=rate_limiter,
         rate_limit_key=rate_limit_key,
@@ -113,7 +112,7 @@ async def stream_generate_content(
 
 
 async def _stream_and_finalize(
-    upstream,
+    open_stream,
     accumulator: StreamAccumulator,
     rate_limiter: RateLimiter,
     rate_limit_key: str,
@@ -124,21 +123,18 @@ async def _stream_and_finalize(
     pruned_contents: list[Content],
     circuit_breaker: CircuitBreaker,
 ):
-    """Tee the stream to the client, then reconcile usage and (maybe) cache the response.
+    """Stream (with bounded pre-stream retry) to the client, then finalize.
 
-    Both run after the loop, not as detached background tasks: by then
-    every byte has already reached the client, so neither can delay what
-    they see, and awaiting them directly avoids managing orphaned-task
-    lifecycle. No finishReason observed (disconnect, upstream error) ->
-    neither reconciliation nor caching happens; a partial generation is
-    never treated as complete, and the breaker records a failure.
+    Finalization (breaker recording, reconciliation, caching) runs after
+    the loop, not as a detached background task: by then every byte has
+    already reached the client, so it can't delay what they see, and
+    awaiting it directly avoids managing orphaned-task lifecycle.
+    stream_with_retry never raises — it always yields a terminal SSE
+    error event on failure — so "finished_cleanly" is the single signal
+    for whether this was a genuine success.
     """
-    try:
-        async for chunk in tee_stream(upstream, accumulator):
-            yield chunk
-    except Exception:
-        circuit_breaker.record_failure()
-        raise
+    async for chunk in stream_with_retry(open_stream, accumulator):
+        yield chunk
     if not accumulator.finished_cleanly:
         circuit_breaker.record_failure()
         return
