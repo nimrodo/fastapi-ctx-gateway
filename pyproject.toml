@@ -34,7 +34,11 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "fakeredis>=2.37.1",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.7",
+    "mkdocstrings[python]>=1.0.6",
     "onnx>=1.22.0",
+    "pymdown-extensions>=11.0.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",

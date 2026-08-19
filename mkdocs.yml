@@ -1,0 +1,97 @@
+site_name: fastapi-ctx-gateway
+site_description: A context-aware agentic API gateway for Gemini — stream proxying, semantic caching, token-aware rate limiting, and context pruning at the edge.
+repo_url: https://github.com/nimrodo/fastapi-ctx-gateway
+repo_name: nimrodo/fastapi-ctx-gateway
+
+docs_dir: docs
+exclude_docs: |
+  agents/*
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Tutorial:
+      - Installation & quickstart: tutorial/index.md
+      - Your first request: tutorial/first-request.md
+      - Configuration: tutorial/configuration.md
+      - Rate limiting: tutorial/rate-limiting.md
+      - Context pruning: tutorial/context-pruning.md
+      - Semantic caching: tutorial/semantic-caching.md
+      - Circuit breaker: tutorial/circuit-breaker.md
+      - Observability: tutorial/observability.md
+      - Using it as a library: tutorial/using-as-a-library.md
+  - Advanced:
+      - Custom vectorizer: advanced/custom-vectorizer.md
+      - Multi-tenant keys: advanced/multi-tenant-keys.md
+      - Deployment: advanced/deployment.md
+      - Extending pruning: advanced/extending-pruning.md
+  - Concepts & glossary: concepts.md
+  - Design decisions:
+      - "0001: Gemini classic API over Interactions API": adr/0001-gemini-classic-api-over-interactions-api.md
+      - "0002: Redis VSS over Qdrant": adr/0002-redis-vss-over-qdrant.md
+      - "0003: RedisVL semantic cache adoption": adr/0003-redisvl-semantic-cache-adoption.md
+      - "0004: Sliding-window counter over exact log": adr/0004-sliding-window-counter-over-exact-log.md
+      - "0005: Per-worker in-memory circuit breaker": adr/0005-per-worker-in-memory-circuit-breaker.md
+  - Reference:
+      - reference/index.md
+      - App: reference/app.md
+      - Config: reference/config.md
+      - Auth: reference/auth.md
+      - Cache: reference/cache.md
+      - Rate limiting: reference/ratelimit.md
+      - Pruning: reference/pruning.md
+      - Circuit breaker: reference/circuit-breaker.md
+      - Proxy: reference/proxy.md
+      - Schemas: reference/schemas.md
+      - Observability: reference/observability.md
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.snippets:
+      check_paths: true
+      base_path: ["."]
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            heading_level: 2
+            merge_init_into_class: true
