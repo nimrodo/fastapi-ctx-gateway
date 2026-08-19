@@ -1,0 +1,33 @@
+"""Tests for the mount-as-library example under examples/library_mount/."""
+
+import importlib.util
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+_APP_PATH = (Path(__file__).parents[2] / "examples" / "library_mount" / "app.py").resolve()
+
+
+def _load_example_app(monkeypatch):
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    spec = importlib.util.spec_from_file_location("library_mount_app", _APP_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.app
+
+
+def test_host_route_is_independent_of_the_mounted_gateway(monkeypatch) -> None:
+    app = _load_example_app(monkeypatch)
+    with TestClient(app) as client:
+        response = client.get("/")
+    assert response.status_code == 200
+    assert response.json() == {"message": "host app; gateway mounted at /gateway"}
+
+
+def test_gateway_submount_is_reachable(monkeypatch) -> None:
+    app = _load_example_app(monkeypatch)
+    with TestClient(app) as client:
+        response = client.get("/gateway/healthz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}

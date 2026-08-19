@@ -58,3 +58,7 @@ print(result.pruned, result.dropped_turn_count)
 `fastapi_ctx_gateway.cli.main` (the CLI entrypoint) is deliberately **not** re-exported from the top-level package — importing `fastapi_ctx_gateway` never has the side effect of parsing the environment or being runnable as a server. Call it explicitly if you need it: `from fastapi_ctx_gateway.cli import main`.
 
 See the [Reference](../reference/index.md) for the full public API surface.
+
+A runnable version of the mount pattern above lives in
+[`examples/library_mount/`](https://github.com/nimrodo/fastapi-ctx-gateway/tree/main/examples/library_mount)
+in the repository.

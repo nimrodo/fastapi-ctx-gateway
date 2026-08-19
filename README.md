@@ -37,6 +37,8 @@ app = create_app(Settings())  # or mount as a sub-app, or override Settings for 
 
 Individual components — `SemanticCache`, `OnnxVectorizer`, `RateLimiter`, `TokenEstimator`, `TokenBudgetPruner`, `CircuitBreaker` — are also importable standalone (`from fastapi_ctx_gateway import TokenBudgetPruner`), with no FastAPI/routing dependency pulled in. The CLI entrypoint (`fastapi_ctx_gateway.cli.main`) is intentionally not part of this import surface, so importing the package never has the side effect of parsing the environment or being runnable as a server.
 
+A runnable example of mounting the gateway inside a host app lives in [`examples/library_mount/`](examples/library_mount).
+
 ## Configuration
 
 All settings are environment variables prefixed `GATEWAY_` (or a `.env` file). Nested fields like `token_budgets` accept JSON.
