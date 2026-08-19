@@ -7,11 +7,63 @@ authors = [
     { name = "Nimrod Oren", email = "nimrodo@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "onnxruntime>=1.29.0",
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-exporter-otlp>=1.44.0",
+    "opentelemetry-instrumentation-fastapi>=0.65b0",
+    "opentelemetry-sdk>=1.44.0",
+    "prometheus-client>=0.26.0",
+    "prometheus-fastapi-instrumentator>=8.1.0",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.15.0",
+    "redisvl>=0.25.1",
+    "tokenizers>=0.23.1",
+    "uvicorn[standard]>=0.52.4",
+]
 
 [project.scripts]
-fastapi-ctx-gateway = "fastapi_ctx_gateway:main"
+fastapi-ctx-gateway = "fastapi_ctx_gateway.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "fakeredis>=2.37.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "respx>=0.23.1",
+    "ruff>=0.16.3",
+    "testcontainers>=4.15.0",
+    "ty>=0.0.73",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+asyncio_mode = "auto"
+markers = [
+    "integration: requires a real Redis Stack instance",
+    "slow: latency-budget benchmarks, excluded by default",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "D"]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ty.src]
+include = ["src"]
