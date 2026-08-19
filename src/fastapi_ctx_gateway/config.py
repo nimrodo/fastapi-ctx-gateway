@@ -47,7 +47,10 @@ class Settings(BaseSettings):
 
     # Maps gateway-issued API keys to tenant ids. Static config for now;
     # swap for a Redis-backed lookup once onboarding needs to be dynamic.
-    tenant_api_keys: dict[str, str] = {}
+    # Required (no default): with no entries every request 401s (see
+    # auth.py), so an empty mapping is never a working configuration —
+    # better to fail at boot than ship a gateway nothing can call.
+    tenant_api_keys: dict[str, str]
 
     # None (the default) disables the semantic cache entirely — a missing
     # or unloadable model degrades to "always miss," never a boot failure,

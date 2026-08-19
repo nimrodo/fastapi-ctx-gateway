@@ -10,6 +10,7 @@ _APP_PATH = (Path(__file__).parents[2] / "examples" / "library_mount" / "app.py"
 
 def _load_example_app(monkeypatch):
     monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
     spec = importlib.util.spec_from_file_location("library_mount_app", _APP_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

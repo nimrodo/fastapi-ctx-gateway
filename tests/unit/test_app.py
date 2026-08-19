@@ -8,6 +8,7 @@ from fastapi_ctx_gateway.config import Settings
 
 def _settings(monkeypatch) -> Settings:
     monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
     return Settings()
 
 

@@ -6,9 +6,10 @@ The gateway is configured entirely through environment variables, prefixed `GATE
 
 ```bash
 GATEWAY_GEMINI_UPSTREAM_KEY=<your-gemini-api-key>
+GATEWAY_TENANT_API_KEYS='{"<gateway-issued-key>": "<tenant-id>"}'
 ```
 
-Everything else has a default. Without at least one entry in `GATEWAY_TENANT_API_KEYS`, no client can authenticate — see [Multi-tenant keys](../advanced/multi-tenant-keys.md).
+`GATEWAY_TENANT_API_KEYS` has no default and the app refuses to boot without it — an empty mapping would mean no client can ever authenticate, so an unconfigured gateway fails fast at startup instead of shipping a service that 401s every request. See [Multi-tenant keys](../advanced/multi-tenant-keys.md). Everything else has a working default.
 
 ## Nested settings
 
@@ -25,7 +26,7 @@ GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-2.5-flash": 32000, "gemini-2.5-pro":
 | `GATEWAY_REDIS_URL` | `redis://localhost:6379` | Shared state store (rate limits, semantic cache) |
 | `GATEWAY_GEMINI_UPSTREAM_KEY` | *(required)* | Sent to Gemini as `x-goog-api-key` |
 | `GATEWAY_GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` | |
-| `GATEWAY_TENANT_API_KEYS` | `{}` | JSON map of gateway-issued key → tenant id |
+| `GATEWAY_TENANT_API_KEYS` | *(required)* | JSON map of gateway-issued key → tenant id |
 | `GATEWAY_EMBEDDING_MODEL_PATH` | *(unset)* | ONNX embedding model path. Unset disables the semantic cache — never a boot failure |
 | `GATEWAY_CACHE_DISTANCE_THRESHOLD` | `0.10` | Cosine distance cutoff for a cache hit |
 | `GATEWAY_CACHE_TTL_S` | `3600` | Cache entry TTL |

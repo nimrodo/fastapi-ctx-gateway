@@ -7,6 +7,7 @@ from fastapi_ctx_gateway import cli
 
 def test_main_builds_app_and_runs_uvicorn(monkeypatch) -> None:
     monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
     run_mock = MagicMock()
     monkeypatch.setattr(cli.uvicorn, "run", run_mock)
 

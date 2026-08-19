@@ -1,10 +1,14 @@
 """Tests for Settings and TokenBudgetConfig defaults/overrides."""
 
+import pytest
+from pydantic import ValidationError
+
 from fastapi_ctx_gateway.config import Settings, TokenBudgetConfig
 
 
 def test_settings_loads_with_defaults(monkeypatch) -> None:
     monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
     settings = Settings()
     assert settings.redis_url == "redis://localhost:6379"
     assert settings.cache_distance_threshold == 0.10
@@ -15,9 +19,20 @@ def test_settings_loads_with_defaults(monkeypatch) -> None:
 
 def test_settings_env_override(monkeypatch) -> None:
     monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
     monkeypatch.setenv("GATEWAY_REDIS_URL", "redis://example:1234")
     settings = Settings()
     assert settings.redis_url == "redis://example:1234"
+
+
+def test_settings_requires_tenant_api_keys(monkeypatch) -> None:
+    """No tenants configured means every request would 401 anyway (see auth.py) —
+    boot should fail loudly instead of shipping a gateway nothing can call.
+    """
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.delenv("GATEWAY_TENANT_API_KEYS", raising=False)
+    with pytest.raises(ValidationError):
+        Settings()
 
 
 def test_token_budget_config_known_model() -> None:
