@@ -12,7 +12,7 @@ target the call-level fail-open guarantee once a cache object exists.
 import asyncio
 
 from fastapi_ctx_gateway.cache.semantic_cache import SemanticCache
-from fastapi_ctx_gateway.schemas.gemini import Content, Part
+from fastapi_ctx_gateway.schemas.neutral import TextPart, Turn
 
 
 class _RaisingRedisCache:
@@ -38,8 +38,8 @@ class _StubVectorizer:
         return [0.1] * 384
 
 
-def _contents() -> list[Content]:
-    return [Content(role="user", parts=[Part(text="hello")])]
+def _turns() -> list[Turn]:
+    return [Turn(role="user", parts=[TextPart(text="hello")])]
 
 
 async def test_lookup_fails_open_on_backend_error() -> None:
@@ -49,7 +49,7 @@ async def test_lookup_fails_open_on_backend_error() -> None:
         temperature_threshold=0.3,
         lookup_timeout_s=1.0,
     )
-    hit = await cache.lookup(_contents(), "tenant-a", "model-x")
+    hit = await cache.lookup(_turns(), "tenant-a", "model-x")
     assert hit is None
 
 
@@ -60,7 +60,7 @@ async def test_store_fails_open_on_backend_error() -> None:
         temperature_threshold=0.3,
         lookup_timeout_s=1.0,
     )
-    await cache.store(_contents(), "tenant-a", "model-x", "hi", None)  # must not raise
+    await cache.store(_turns(), "tenant-a", "model-x", "hi", None)  # must not raise
 
 
 async def test_lookup_fails_open_on_timeout() -> None:
@@ -70,7 +70,7 @@ async def test_lookup_fails_open_on_timeout() -> None:
         temperature_threshold=0.3,
         lookup_timeout_s=0.05,
     )
-    hit = await cache.lookup(_contents(), "tenant-a", "model-x")
+    hit = await cache.lookup(_turns(), "tenant-a", "model-x")
     assert hit is None
 
 
@@ -83,7 +83,7 @@ async def test_on_fail_open_callback_fires_on_lookup_failure() -> None:
         lookup_timeout_s=1.0,
         on_fail_open=lambda: calls.append(1),
     )
-    await cache.lookup(_contents(), "tenant-a", "model-x")
+    await cache.lookup(_turns(), "tenant-a", "model-x")
     assert len(calls) == 1
 
 
@@ -96,7 +96,7 @@ async def test_on_fail_open_callback_fires_on_store_failure() -> None:
         lookup_timeout_s=1.0,
         on_fail_open=lambda: calls.append(1),
     )
-    await cache.store(_contents(), "tenant-a", "model-x", "hi", None)
+    await cache.store(_turns(), "tenant-a", "model-x", "hi", None)
     assert len(calls) == 1
 
 
@@ -114,6 +114,6 @@ async def test_on_fail_open_callback_not_called_on_genuine_miss() -> None:
         lookup_timeout_s=1.0,
         on_fail_open=lambda: calls.append(1),
     )
-    hit = await cache.lookup(_contents(), "tenant-a", "model-x")
+    hit = await cache.lookup(_turns(), "tenant-a", "model-x")
     assert hit is None
     assert len(calls) == 0

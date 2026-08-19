@@ -26,14 +26,15 @@ curl http://localhost:8000/                # the host app's own route
 curl http://localhost:8000/gateway/healthz # the mounted gateway
 ```
 
-`POST /gateway/v1/gemini-3.7-flash:streamGenerateContent` (with an
-`x-gateway-api-key: my-gateway-key` header) behaves exactly like the
-standalone gateway (see the [tutorial](../../docs/tutorial/first-request.md)) —
-it just lives under a `/gateway` prefix here instead of at the root. With a
-placeholder `GATEWAY_GEMINI_UPSTREAM_KEY` you'll get a proxied `400` from
-Gemini itself as an SSE error event, not a gateway error — that means
-everything up to the upstream call is working; use a real key to see an
-actual generation.
+`POST /gateway/v1/gemini/gemini-3.7-flash:streamGenerateContent` (with an
+`x-gateway-api-key: my-gateway-key` header and a neutral-schema body, e.g.
+`{"turns": [{"role": "user", "parts": [{"type": "text", "text": "hi"}]}]}`)
+behaves exactly like the standalone gateway (see the
+[tutorial](../../docs/tutorial/first-request.md)) — it just lives under a
+`/gateway` prefix here instead of at the root. With a placeholder
+`GATEWAY_GEMINI_UPSTREAM_KEY` you'll get a proxied error from Gemini itself
+as a neutral SSE error event, not a gateway error — that means everything up
+to the upstream call is working; use a real key to see an actual generation.
 
 ## OpenAPI docs
 

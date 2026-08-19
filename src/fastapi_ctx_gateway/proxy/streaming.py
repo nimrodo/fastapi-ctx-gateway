@@ -1,15 +1,17 @@
-"""Tees a raw Gemini SSE byte stream to the client while accumulating text."""
+"""Tees a neutral SSE byte stream to the client while accumulating text."""
 
 import json
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import BaseModel
+
+from fastapi_ctx_gateway.schemas.neutral import NeutralError, NeutralErrorEvent, Usage
 
 __all__ = ["StreamAccumulator", "stream_with_retry", "tee_stream"]
 
 
-@dataclass
-class StreamAccumulator:
+class StreamAccumulator(BaseModel):
     """Side-channel state populated as tee_stream forwards chunks.
 
     Passed in by the caller (rather than returned) because an async
@@ -19,36 +21,39 @@ class StreamAccumulator:
 
     text: str = ""
     finish_reason: str | None = None
-    usage: dict[str, Any] | None = field(default=None)
+    usage: Usage | None = None
     bytes_streamed: bool = False
+    errored: bool = False
 
     @property
     def finished_cleanly(self) -> bool:
-        """True once a terminal finishReason chunk has been observed."""
-        return self.finish_reason is not None
+        """True once a terminal finish_reason chunk has been observed, with no error."""
+        return self.finish_reason is not None and not self.errored
 
 
-def _extract_delta(event_json: dict[str, Any]) -> tuple[str, str | None, dict[str, Any] | None]:
-    candidates = event_json.get("candidates") or []
-    usage = event_json.get("usageMetadata")
-    if not candidates:
-        return "", None, usage
-    candidate = candidates[0]
-    finish_reason = candidate.get("finishReason")
-    parts = (candidate.get("content") or {}).get("parts") or []
-    text = "".join(part.get("text", "") for part in parts if "text" in part)
-    return text, finish_reason, usage
+def _extract_delta(
+    event_json: dict[str, Any],
+) -> tuple[str, str | None, Usage | None, bool]:
+    if "error" in event_json:
+        return "", None, None, True
+    delta = event_json.get("delta") or {}
+    text = "".join(
+        part.get("text", "") for part in delta.get("parts", []) if part.get("type") == "text"
+    )
+    usage_json = event_json.get("usage")
+    usage = Usage.model_validate(usage_json) if usage_json else None
+    return text, event_json.get("finish_reason"), usage, False
 
 
 async def tee_stream(
     upstream: AsyncIterator[bytes], accumulator: StreamAccumulator
 ) -> AsyncIterator[bytes]:
-    """Forward each raw chunk to the caller while accumulating text/finishReason.
+    """Forward each raw chunk to the caller while accumulating text/finish_reason.
 
     Forwarding happens before parsing, so upstream bytes reach the client
     untouched even if a chunk can't be interpreted as SSE (e.g. an error
     body). If the caller stops iterating early (client disconnect), the
-    upstream async generator is explicitly closed so the in-flight Gemini
+    upstream async generator is explicitly closed so the in-flight upstream
     call is cancelled rather than drained to completion.
     """
     buffer = b""
@@ -69,12 +74,14 @@ async def tee_stream(
                         event_json = json.loads(payload)
                     except ValueError:
                         continue
-                    text, finish_reason, usage = _extract_delta(event_json)
+                    text, finish_reason, usage, errored = _extract_delta(event_json)
                     accumulator.text += text
                     if finish_reason:
                         accumulator.finish_reason = finish_reason
                     if usage:
                         accumulator.usage = usage
+                    if errored:
+                        accumulator.errored = True
     finally:
         aclose = getattr(upstream, "aclose", None)
         if aclose is not None:
@@ -82,8 +89,8 @@ async def tee_stream(
 
 
 def _terminal_error_event(message: str) -> bytes:
-    payload = {"error": {"message": message, "code": 502}}
-    return f"data: {json.dumps(payload)}\n\n".encode()
+    payload = NeutralErrorEvent(error=NeutralError(message=message, type="stream_failure"))
+    return f"data: {payload.model_dump_json()}\n\n".encode()
 
 
 async def stream_with_retry(

@@ -4,10 +4,12 @@ import json
 
 from fastapi_ctx_gateway.proxy.streaming import StreamAccumulator, stream_with_retry
 
-CHUNK = b'data: {"candidates":[{"content":{"parts":[{"text":"hi"}],"role":"model"},'
-CHUNK += b'"finishReason":"STOP"}]}\n\n'
+CHUNK = (
+    b'data: {"delta": {"role": "assistant", "parts": [{"type": "text", "text": "hi"}]}, '
+    b'"finish_reason": "stop"}\n\n'
+)
 PARTIAL_CHUNK = (
-    b'data: {"candidates":[{"content":{"parts":[{"text":"partial"}],"role":"model"}}]}\n\n'
+    b'data: {"delta": {"role": "assistant", "parts": [{"type": "text", "text": "partial"}]}}\n\n'
 )
 
 

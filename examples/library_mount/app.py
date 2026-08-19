@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Propagate startup/shutdown into the mounted gateway sub-app.
 
     Starlette does not do this automatically — without it, gateway_app.state
-    (gemini_client, rate_limiter, ...) is never populated and every request
+    (providers, rate_limiter, ...) is never populated and every request
     past /healthz 500s. Entering its lifespan here from the host's own
     lifespan is the standard workaround.
     """

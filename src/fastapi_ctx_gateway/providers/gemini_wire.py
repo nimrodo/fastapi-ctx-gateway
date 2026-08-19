@@ -1,9 +1,10 @@
-"""Gemini wire-schema models.
+"""Gemini's own wire schema.
 
 Field names mirror Gemini's REST JSON casing (camelCase) via an alias
-generator; Python code uses snake_case attributes. These models exist for
-validation only — the gateway never re-maps or translates them, it proxies
-the same shape it received (minus whatever pruning trims).
+generator; Python code uses snake_case attributes. This is used only inside
+the Gemini provider adapter (`fastapi_ctx_gateway.providers.gemini`) for
+request/response translation — it is not the gateway's public contract; see
+`fastapi_ctx_gateway.schemas.neutral` for that.
 """
 
 from typing import Any

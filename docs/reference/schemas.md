@@ -1,3 +1,3 @@
 # Schemas
 
-::: fastapi_ctx_gateway.schemas.gemini
+::: fastapi_ctx_gateway.schemas.neutral

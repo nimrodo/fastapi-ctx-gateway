@@ -37,7 +37,7 @@ def test_gateway_submount_is_reachable(monkeypatch) -> None:
 def test_mounted_gateways_lifespan_actually_runs(monkeypatch) -> None:
     """A mounted sub-app's lifespan doesn't run automatically in Starlette —
     the host app must explicitly propagate it. Without that, app.state on the
-    gateway (gemini_client, rate_limiter, etc.) is never populated and every
+    gateway (providers, rate_limiter, etc.) is never populated and every
     real request 500s with a KeyError, even though /healthz (which touches no
     state) looks fine.
     """
@@ -45,5 +45,5 @@ def test_mounted_gateways_lifespan_actually_runs(monkeypatch) -> None:
     mount = next(route for route in app.routes if getattr(route, "path", None) == "/gateway")
     gateway_app = mount.app
     with TestClient(app):
-        assert getattr(gateway_app.state, "gemini_client", None) is not None
+        assert getattr(gateway_app.state, "providers", None)
         assert getattr(gateway_app.state, "rate_limiter", None) is not None

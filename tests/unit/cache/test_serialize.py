@@ -1,38 +1,38 @@
-"""Tests for canonicalize_contents: deterministic embedding-input serialization."""
+"""Tests for canonicalize_turns: deterministic embedding-input serialization."""
 
-from fastapi_ctx_gateway.cache.serialize import canonicalize_contents
-from fastapi_ctx_gateway.schemas.gemini import Content, Part
+from fastapi_ctx_gateway.cache.serialize import canonicalize_turns
+from fastapi_ctx_gateway.schemas.neutral import BinaryPart, TextPart, Turn
 
 
-def test_deterministic_for_identical_contents() -> None:
-    contents = [Content(role="user", parts=[Part(text="hi")])]
-    assert canonicalize_contents(contents) == canonicalize_contents(contents)
+def test_deterministic_for_identical_turns() -> None:
+    turns = [Turn(role="user", parts=[TextPart(text="hi")])]
+    assert canonicalize_turns(turns) == canonicalize_turns(turns)
 
 
 def test_differs_when_text_differs() -> None:
-    a = [Content(role="user", parts=[Part(text="hi")])]
-    b = [Content(role="user", parts=[Part(text="bye")])]
-    assert canonicalize_contents(a) != canonicalize_contents(b)
+    a = [Turn(role="user", parts=[TextPart(text="hi")])]
+    b = [Turn(role="user", parts=[TextPart(text="bye")])]
+    assert canonicalize_turns(a) != canonicalize_turns(b)
 
 
 def test_is_order_sensitive() -> None:
     a = [
-        Content(role="user", parts=[Part(text="first")]),
-        Content(role="model", parts=[Part(text="second")]),
+        Turn(role="user", parts=[TextPart(text="first")]),
+        Turn(role="assistant", parts=[TextPart(text="second")]),
     ]
     b = [
-        Content(role="model", parts=[Part(text="second")]),
-        Content(role="user", parts=[Part(text="first")]),
+        Turn(role="assistant", parts=[TextPart(text="second")]),
+        Turn(role="user", parts=[TextPart(text="first")]),
     ]
-    assert canonicalize_contents(a) != canonicalize_contents(b)
+    assert canonicalize_turns(a) != canonicalize_turns(b)
 
 
 def test_ignores_non_text_parts() -> None:
-    with_image = [
-        Content(
+    with_binary = [
+        Turn(
             role="user",
-            parts=[Part(text="hi"), Part(inline_data={"mimeType": "image/png", "data": "AAAA"})],
+            parts=[TextPart(text="hi"), BinaryPart(mime_type="image/png", data="AAAA")],
         )
     ]
-    without_image = [Content(role="user", parts=[Part(text="hi")])]
-    assert canonicalize_contents(with_image) == canonicalize_contents(without_image)
+    without_binary = [Turn(role="user", parts=[TextPart(text="hi")])]
+    assert canonicalize_turns(with_binary) == canonicalize_turns(without_binary)

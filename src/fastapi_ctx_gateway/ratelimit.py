@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi_ctx_gateway.schemas.gemini import Content
+from fastapi_ctx_gateway.schemas.neutral import Part, TextPart, Turn
 
 __all__ = ["RateLimitDecision", "RateLimitExceeded", "RateLimiter", "TokenEstimator"]
 
@@ -25,16 +25,15 @@ class TokenEstimator:
     _PER_TURN_OVERHEAD_TOKENS = 4
     _SAFETY_FACTOR = 1.1
 
-    def estimate(self, contents: list[Content], system_instruction: Content | None) -> int:
+    def estimate(self, turns: list[Turn], system: list[Part] | None) -> int:
         """Estimate prompt tokens over text parts only, biased slightly high."""
-        turns = list(contents)
-        if system_instruction is not None:
-            turns = [*turns, system_instruction]
+        turn_count = len(turns) + (1 if system else 0)
+        text_parts = [part for turn in turns for part in turn.parts if isinstance(part, TextPart)]
+        if system:
+            text_parts += [part for part in system if isinstance(part, TextPart)]
 
-        total_chars = sum(
-            len(part.text) for content in turns for part in content.parts if part.text
-        )
-        raw = total_chars / self._CHARS_PER_TOKEN + len(turns) * self._PER_TURN_OVERHEAD_TOKENS
+        total_chars = sum(len(part.text) for part in text_parts)
+        raw = total_chars / self._CHARS_PER_TOKEN + turn_count * self._PER_TURN_OVERHEAD_TOKENS
         return math.ceil(raw * self._SAFETY_FACTOR)
 
 

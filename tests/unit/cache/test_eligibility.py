@@ -3,7 +3,7 @@
 import pytest
 
 from fastapi_ctx_gateway.cache.semantic_cache import is_cache_eligible
-from fastapi_ctx_gateway.schemas.gemini import GenerationConfig
+from fastapi_ctx_gateway.schemas.neutral import GenerationConfig
 
 THRESHOLD = 0.3
 

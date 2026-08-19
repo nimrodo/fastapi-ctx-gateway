@@ -1,6 +1,6 @@
 # Context pruning
 
-Long-running conversations grow without bound unless something trims them. The gateway prunes `contents[]` — but only when a conversation actually needs it.
+Long-running conversations grow without bound unless something trims them. The gateway prunes `turns[]` — but only when a conversation actually needs it.
 
 ## Budget-gated, not always-on
 

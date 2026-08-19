@@ -17,7 +17,8 @@ from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import register_exception_handlers
 from fastapi_ctx_gateway.observability.metrics import Metrics, build_metrics
-from fastapi_ctx_gateway.proxy.client import GeminiClient
+from fastapi_ctx_gateway.providers.base import Provider
+from fastapi_ctx_gateway.providers.gemini import GeminiProvider
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter
 from fastapi_ctx_gateway.routers.generate import router as generate_router
@@ -70,6 +71,15 @@ def _build_semantic_cache(settings: Settings, metrics: Metrics) -> SemanticCache
         return None
 
 
+def _build_providers(settings: Settings, http_client: httpx.AsyncClient) -> dict[str, Provider]:
+    gemini = GeminiProvider(
+        http_client=http_client,
+        api_key=settings.gemini_upstream_key.get_secret_value(),
+        base_url=settings.gemini_base_url,
+    )
+    return {gemini.name: gemini}
+
+
 def create_app(settings: Settings) -> FastAPI:
     """Build a configured FastAPI application instance.
 
@@ -95,11 +105,7 @@ def create_app(settings: Settings) -> FastAPI:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             app.state.http_client = http_client
             app.state.redis_client = redis_client
-            app.state.gemini_client = GeminiClient(
-                http_client=http_client,
-                api_key=settings.gemini_upstream_key.get_secret_value(),
-                base_url=settings.gemini_base_url,
-            )
+            app.state.providers = _build_providers(settings, http_client)
             app.state.rate_limiter = RateLimiter(
                 redis_client=redis_client,
                 rpm_limit=settings.rpm_limit,

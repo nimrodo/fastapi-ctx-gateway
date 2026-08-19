@@ -8,11 +8,11 @@ uv add fastapi-ctx-gateway
 
 ## Why
 
-Calling an LLM provider directly from every client leaves real savings on the table: repeated or near-duplicate prompts re-run the full model every time, conversations grow unbounded until they blow past context windows and cost, and nothing protects your own capacity or the provider's quota when things go wrong. `fastapi-ctx-gateway` sits in the request path and handles all of that transparently, without changing the wire protocol your clients already speak.
+Calling an LLM provider directly from every client leaves real savings on the table: repeated or near-duplicate prompts re-run the full model every time, conversations grow unbounded until they blow past context windows and cost, and nothing protects your own capacity or the provider's quota when things go wrong. `fastapi-ctx-gateway` sits in the request path and handles all of that transparently, behind one provider-agnostic contract.
 
 ## Features
 
-- **Stream proxying** — Gemini's native `contents`/`parts` wire schema, unchanged. No translation layer, no SDK lock-in.
+- **Stream proxying** — one neutral request/response contract (`turns`/`parts`) that a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from each upstream API. Gemini is the built-in provider today; see [ADR-0006](adr/0006-neutral-schema-and-provider-abstraction.md).
 - **Semantic caching** — near-duplicate prompts hit a Redis-backed vector cache instead of calling Gemini again. Tenant- and model-partitioned, fails open on any backend error.
 - **Token-aware rate limiting** — TPM/RPM budgets per tenant and model, enforced with a single atomic Redis round trip.
 - **Context pruning** — exact-duplicate turns dropped and a token-budget sliding window applied, but only once a conversation actually exceeds its budget. Untouched otherwise.
@@ -28,10 +28,10 @@ app = create_app(Settings())
 ```
 
 ```bash
-curl -X POST http://localhost:8000/v1/gemini-3.7-flash:streamGenerateContent \
+curl -X POST http://localhost:8000/v1/gemini/gemini-3.7-flash:streamGenerateContent \
   -H "x-gateway-api-key: your-gateway-key" \
   -H "Content-Type: application/json" \
-  -d '{"contents": [{"role": "user", "parts": [{"text": "Hello!"}]}]}'
+  -d '{"turns": [{"role": "user", "parts": [{"type": "text", "text": "Hello!"}]}]}'
 ```
 
 Head to the [Tutorial](tutorial/index.md) to get a gateway running end to end, or straight to the [Reference](reference/index.md) if you already know what you're looking for.

@@ -7,16 +7,20 @@ from fastapi import Request
 
 from fastapi_ctx_gateway.cache import SemanticCache
 from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
+from fastapi_ctx_gateway.errors import ProviderNotFoundError
 from fastapi_ctx_gateway.observability.metrics import Metrics
-from fastapi_ctx_gateway.proxy.client import GeminiClient
+from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter
 
 
-def get_gemini_client(request: Request) -> GeminiClient:
-    """Return the shared GeminiClient built once during app startup."""
-    client: GeminiClient = request.app.state.gemini_client
-    return client
+def get_provider(provider_name: str, request: Request) -> Provider:
+    """Look up the requested provider by its path segment, or 404 if unknown."""
+    providers: dict[str, Provider] = request.app.state.providers
+    provider = providers.get(provider_name)
+    if provider is None:
+        raise ProviderNotFoundError(provider_name)
+    return provider
 
 
 def get_rate_limiter(request: Request) -> RateLimiter:

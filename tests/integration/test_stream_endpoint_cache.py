@@ -7,13 +7,14 @@ import httpx
 import pytest
 import respx
 from fastapi.testclient import TestClient
+from support.neutral_sse import gemini_sse_event
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
 
 pytestmark = pytest.mark.integration
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.7-flash"
 FIXTURE_MODEL_PATH = str(
     Path(__file__).parent.parent / "fixtures" / "tiny_onnx_model" / "model.onnx"
 )
@@ -29,20 +30,17 @@ def _settings(monkeypatch) -> Settings:
 
 def _post(client: TestClient, text: str, temperature: float = 0.0) -> httpx.Response:
     return client.post(
-        f"/v1/{MODEL}:streamGenerateContent",
+        f"/v1/gemini/{MODEL}:streamGenerateContent",
         headers={"x-gateway-api-key": "gw-secret"},
         json={
-            "contents": [{"role": "user", "parts": [{"text": text}]}],
-            "generationConfig": {"temperature": temperature},
+            "turns": [{"role": "user", "parts": [{"type": "text", "text": text}]}],
+            "generation_config": {"temperature": temperature},
         },
     )
 
 
 def test_second_identical_request_is_a_cache_hit_and_skips_gemini(monkeypatch) -> None:
-    sse_body = (
-        b'data: {"candidates":[{"content":{"parts":[{"text":"Paris"}],"role":"model"},'
-        b'"finishReason":"STOP"}],"usageMetadata":{"totalTokenCount":7}}\n\n'
-    )
+    sse_body = gemini_sse_event(text="Paris", finish_reason="STOP", total_tokens=7)
     with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:
         route = mock.post(f"/v1beta/models/{MODEL}:streamGenerateContent").mock(
             return_value=httpx.Response(
@@ -62,13 +60,13 @@ def test_second_identical_request_is_a_cache_hit_and_skips_gemini(monkeypatch) -
     assert route.call_count == 1  # Gemini only called once, for the miss
 
     hit_body = json.loads(second.content.removeprefix(b"data: ").rstrip(b"\n"))
-    hit_text = hit_body["candidates"][0]["content"]["parts"][0]["text"]
+    hit_text = hit_body["delta"]["parts"][0]["text"]
     assert hit_text == "Paris"
 
 
 def test_stream_without_finish_reason_is_never_cached(monkeypatch) -> None:
     # No finishReason chunk at all -> tee_stream never sees a clean finish.
-    truncated_sse_body = b'data: {"candidates":[{"content":{"parts":[{"text":"partial"}]}}]}\n\n'
+    truncated_sse_body = gemini_sse_event(text="partial")
     with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:
         route = mock.post(f"/v1beta/models/{MODEL}:streamGenerateContent").mock(
             return_value=httpx.Response(
@@ -87,10 +85,7 @@ def test_stream_without_finish_reason_is_never_cached(monkeypatch) -> None:
 
 
 def test_high_temperature_request_bypasses_cache(monkeypatch) -> None:
-    sse_body = (
-        b'data: {"candidates":[{"content":{"parts":[{"text":"a random poem"}],"role":"model"},'
-        b'"finishReason":"STOP"}],"usageMetadata":{"totalTokenCount":9}}\n\n'
-    )
+    sse_body = gemini_sse_event(text="a random poem", finish_reason="STOP", total_tokens=9)
     with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:
         route = mock.post(f"/v1beta/models/{MODEL}:streamGenerateContent").mock(
             return_value=httpx.Response(

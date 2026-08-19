@@ -4,7 +4,7 @@ A context-aware agentic API gateway for Google's Gemini API. It sits between cli
 
 ## Architecture
 
-The gateway proxies Gemini's native `streamGenerateContent` wire schema unchanged — no translation layer. Every request is measured against two separate latency budgets:
+The gateway speaks its own neutral request/response contract; a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from each upstream API (Gemini today — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md)). Every request is measured against two separate latency budgets:
 
 - **Cache-hit path** (embed + Redis lookup + response synthesis, no Gemini call): target ≤15-20ms total.
 - **Cache-miss path** (auth + rate-limit + prune, before the Gemini call): target low single-digit ms, additive to whatever Gemini itself takes.
@@ -23,7 +23,7 @@ GATEWAY_TENANT_API_KEYS='{"some-gateway-key": "your-tenant-id"}' \
   uv run fastapi-ctx-gateway
 ```
 
-The server listens on `:8000` by default. Point a client at `POST /v1/{model}:streamGenerateContent` with header `x-gateway-api-key: some-gateway-key` and a normal Gemini request body.
+The server listens on `:8000` by default. Point a client at `POST /v1/{provider}/{model}:streamGenerateContent` (e.g. `/v1/gemini/gemini-3.7-flash:streamGenerateContent`) with header `x-gateway-api-key: some-gateway-key` and the gateway's own neutral request body — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md).
 
 Health check: `GET /healthz`. Prometheus metrics (gateway-specific counters plus generic HTTP metrics): `GET /metrics`.
 

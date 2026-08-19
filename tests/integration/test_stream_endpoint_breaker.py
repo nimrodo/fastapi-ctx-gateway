@@ -33,7 +33,7 @@ def test_open_breaker_short_circuits_before_gemini(monkeypatch) -> None:
     with respx.mock(
         base_url="https://generativelanguage.googleapis.com", assert_all_called=False
     ) as mock:
-        route = mock.post("/v1beta/models/gemini-2.5-flash:streamGenerateContent").mock(
+        route = mock.post("/v1beta/models/gemini-3.7-flash:streamGenerateContent").mock(
             return_value=httpx.Response(200, content=b"data: {}\n\n")
         )
 
@@ -41,9 +41,9 @@ def test_open_breaker_short_circuits_before_gemini(monkeypatch) -> None:
         app.dependency_overrides[get_circuit_breaker] = lambda: _AlwaysOpenBreaker()
         with TestClient(app) as client:
             response = client.post(
-                "/v1/gemini-2.5-flash:streamGenerateContent",
+                "/v1/gemini/gemini-3.7-flash:streamGenerateContent",
                 headers={"x-gateway-api-key": "gw-secret"},
-                json={"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+                json={"turns": [{"role": "user", "parts": [{"type": "text", "text": "hi"}]}]},
             )
 
     assert response.status_code == 503

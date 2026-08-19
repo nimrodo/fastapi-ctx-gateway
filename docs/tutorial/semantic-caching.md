@@ -19,11 +19,11 @@ With no model configured (or a missing/unloadable file, or an unreachable Redis 
 
 Not every request is cache-eligible — only ones whose output is meant to be near-deterministic:
 
-- `generationConfig.tools` must be empty. A cached response can't reflect a different tool availability.
-- `generationConfig.temperature` must be set and at or below `GATEWAY_CACHE_TEMPERATURE_THRESHOLD` (default `0.3`). An **unset** temperature is treated as "not explicitly low" — it bypasses the cache, it doesn't default into it.
+- `tools` must be empty. A cached response can't reflect a different tool availability.
+- `generation_config.temperature` must be set and at or below `GATEWAY_CACHE_TEMPERATURE_THRESHOLD` (default `0.3`). An **unset** temperature is treated as "not explicitly low" — it bypasses the cache, it doesn't default into it.
 
 ```json
-{"contents": [...], "generationConfig": {"temperature": 0.9}}
+{"turns": [...], "generation_config": {"temperature": 0.9}}
 ```
 
 — always bypasses the cache; `X-Cache: MISS` on every call.

@@ -3,15 +3,15 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
+from pydantic import BaseModel
 from redisvl.extensions.cache.llm import SemanticCache as RedisVLSemanticCache
 from redisvl.query.filter import Tag
 
-from fastapi_ctx_gateway.cache.serialize import canonicalize_contents
+from fastapi_ctx_gateway.cache.serialize import canonicalize_turns
 from fastapi_ctx_gateway.cache.vectorizer import OnnxVectorizer
-from fastapi_ctx_gateway.schemas.gemini import Content, GenerationConfig
+from fastapi_ctx_gateway.schemas.neutral import GenerationConfig, Turn, Usage
 
 __all__ = ["CacheHit", "SemanticCache", "is_cache_eligible"]
 
@@ -38,12 +38,11 @@ def is_cache_eligible(
     return temperature <= temperature_threshold
 
 
-@dataclass(frozen=True)
-class CacheHit:
+class CacheHit(BaseModel):
     """A cached response, ready to be replayed to the client."""
 
     response_text: str
-    usage: dict[str, Any] | None
+    usage: Usage | None
 
 
 class SemanticCache:
@@ -80,11 +79,11 @@ class SemanticCache:
         """See is_cache_eligible."""
         return is_cache_eligible(tools, generation_config, self._temperature_threshold)
 
-    async def lookup(self, contents: list[Content], tenant_id: str, model: str) -> CacheHit | None:
+    async def lookup(self, turns: list[Turn], tenant_id: str, model: str) -> CacheHit | None:
         """Look up a semantically similar cached response, or None on miss/failure/timeout."""
         try:
             return await asyncio.wait_for(
-                self._lookup(contents, tenant_id, model), timeout=self._lookup_timeout_s
+                self._lookup(turns, tenant_id, model), timeout=self._lookup_timeout_s
             )
         except Exception:
             logger.warning("semantic cache lookup failed; failing open", exc_info=True)
@@ -92,27 +91,31 @@ class SemanticCache:
                 self._on_fail_open()
             return None
 
-    async def _lookup(self, contents: list[Content], tenant_id: str, model: str) -> CacheHit | None:
-        text = canonicalize_contents(contents)
+    async def _lookup(self, turns: list[Turn], tenant_id: str, model: str) -> CacheHit | None:
+        text = canonicalize_turns(turns)
         vector = await self._vectorizer.aembed(text)
         filter_expression = (Tag("tenant_id") == tenant_id) & (Tag("model") == model)
         results = await self._redis_cache.acheck(vector=vector, filter_expression=filter_expression)
         if not results:
             return None
         result = results[0]
-        return CacheHit(response_text=result["response"], usage=result.get("metadata"))
+        metadata = result.get("metadata")
+        return CacheHit(
+            response_text=result["response"],
+            usage=Usage.model_validate(metadata) if metadata else None,
+        )
 
     async def store(
         self,
-        contents: list[Content],
+        turns: list[Turn],
         tenant_id: str,
         model: str,
         response_text: str,
-        usage: dict[str, Any] | None,
+        usage: Usage | None,
     ) -> None:
         """Store a completed response for future lookups. Failure is logged, never raised."""
         try:
-            await self._store(contents, tenant_id, model, response_text, usage)
+            await self._store(turns, tenant_id, model, response_text, usage)
         except Exception:
             logger.warning("semantic cache store failed; skipping", exc_info=True)
             if self._on_fail_open is not None:
@@ -120,18 +123,18 @@ class SemanticCache:
 
     async def _store(
         self,
-        contents: list[Content],
+        turns: list[Turn],
         tenant_id: str,
         model: str,
         response_text: str,
-        usage: dict[str, Any] | None,
+        usage: Usage | None,
     ) -> None:
-        text = canonicalize_contents(contents)
+        text = canonicalize_turns(turns)
         vector = await self._vectorizer.aembed(text)
         await self._redis_cache.astore(
             prompt=text,
             response=response_text,
             vector=vector,
             filters={"tenant_id": tenant_id, "model": model},
-            metadata=usage,
+            metadata=usage.model_dump(exclude_none=True) if usage else None,
         )

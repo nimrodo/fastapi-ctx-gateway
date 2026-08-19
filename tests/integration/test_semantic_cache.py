@@ -8,15 +8,15 @@ from redisvl.extensions.cache.llm import SemanticCache as RedisVLSemanticCache
 
 from fastapi_ctx_gateway.cache.semantic_cache import SemanticCache
 from fastapi_ctx_gateway.cache.vectorizer import OnnxVectorizer, simple_char_code_tokenize
-from fastapi_ctx_gateway.schemas.gemini import Content, Part
+from fastapi_ctx_gateway.schemas.neutral import TextPart, Turn, Usage
 
 FIXTURE_MODEL_PATH = Path(__file__).parent.parent / "fixtures" / "tiny_onnx_model" / "model.onnx"
 
 pytestmark = pytest.mark.integration
 
 
-def _contents(text: str) -> list[Content]:
-    return [Content(role="user", parts=[Part(text=text)])]
+def _turns(text: str) -> list[Turn]:
+    return [Turn(role="user", parts=[TextPart(text=text)])]
 
 
 @pytest.fixture
@@ -50,31 +50,29 @@ async def cache(vectorizer: OnnxVectorizer) -> SemanticCache:
 
 
 async def test_store_then_lookup_is_a_hit(cache: SemanticCache) -> None:
-    contents = _contents("what is the capital of france")
-    await cache.store(contents, "tenant-a", "model-x", "Paris", {"totalTokenCount": 5})
-    hit = await cache.lookup(contents, "tenant-a", "model-x")
+    turns = _turns("what is the capital of france")
+    await cache.store(turns, "tenant-a", "model-x", "Paris", Usage(total_tokens=5))
+    hit = await cache.lookup(turns, "tenant-a", "model-x")
     assert hit is not None
     assert hit.response_text == "Paris"
-    assert hit.usage == {"totalTokenCount": 5}
+    assert hit.usage == Usage(total_tokens=5)
 
 
 async def test_dissimilar_prompt_is_a_miss(cache: SemanticCache) -> None:
-    await cache.store(
-        _contents("what is the capital of france"), "tenant-a", "model-x", "Paris", None
-    )
-    hit = await cache.lookup(_contents("write a poem about the ocean"), "tenant-a", "model-x")
+    await cache.store(_turns("what is the capital of france"), "tenant-a", "model-x", "Paris", None)
+    hit = await cache.lookup(_turns("write a poem about the ocean"), "tenant-a", "model-x")
     assert hit is None
 
 
 async def test_different_tenant_is_a_miss(cache: SemanticCache) -> None:
-    contents = _contents("what is the capital of france")
-    await cache.store(contents, "tenant-a", "model-x", "Paris", None)
-    hit = await cache.lookup(contents, "tenant-b", "model-x")
+    turns = _turns("what is the capital of france")
+    await cache.store(turns, "tenant-a", "model-x", "Paris", None)
+    hit = await cache.lookup(turns, "tenant-b", "model-x")
     assert hit is None
 
 
 async def test_different_model_is_a_miss(cache: SemanticCache) -> None:
-    contents = _contents("what is the capital of france")
-    await cache.store(contents, "tenant-a", "model-x", "Paris", None)
-    hit = await cache.lookup(contents, "tenant-a", "model-y")
+    turns = _turns("what is the capital of france")
+    await cache.store(turns, "tenant-a", "model-x", "Paris", None)
+    hit = await cache.lookup(turns, "tenant-a", "model-y")
     assert hit is None

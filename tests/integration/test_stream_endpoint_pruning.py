@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings, TokenBudgetConfig
 
-TINY_BUDGET_MODEL = "gemini-2.5-flash"
+TINY_BUDGET_MODEL = "gemini-3.7-flash"
 
 
 def _settings(monkeypatch, token_budgets: TokenBudgetConfig) -> Settings:
@@ -18,12 +18,16 @@ def _settings(monkeypatch, token_budgets: TokenBudgetConfig) -> Settings:
     return Settings(token_budgets=token_budgets)
 
 
-def _post(client: TestClient, contents: list[dict]) -> httpx.Response:
+def _post(client: TestClient, turns: list[dict]) -> httpx.Response:
     return client.post(
-        f"/v1/{TINY_BUDGET_MODEL}:streamGenerateContent",
+        f"/v1/gemini/{TINY_BUDGET_MODEL}:streamGenerateContent",
         headers={"x-gateway-api-key": "gw-secret"},
-        json={"contents": contents},
+        json={"turns": turns},
     )
+
+
+def _text_part(text: str) -> dict:
+    return {"type": "text", "text": text}
 
 
 def test_over_budget_conversation_is_pruned_before_proxying(monkeypatch) -> None:
@@ -38,9 +42,9 @@ def test_over_budget_conversation_is_pruned_before_proxying(monkeypatch) -> None
             response = _post(
                 client,
                 [
-                    {"role": "user", "parts": [{"text": "oldest " * 20}]},
-                    {"role": "model", "parts": [{"text": "middle " * 20}]},
-                    {"role": "user", "parts": [{"text": "newest"}]},
+                    {"role": "user", "parts": [_text_part("oldest " * 20)]},
+                    {"role": "assistant", "parts": [_text_part("middle " * 20)]},
+                    {"role": "user", "parts": [_text_part("newest")]},
                 ],
             )
 
@@ -60,7 +64,7 @@ def test_under_budget_conversation_reaches_gemini_unmodified(monkeypatch) -> Non
 
         app = create_app(_settings(monkeypatch, roomy_budgets))
         with TestClient(app) as client:
-            response = _post(client, [{"role": "user", "parts": [{"text": "hi"}]}])
+            response = _post(client, [{"role": "user", "parts": [_text_part("hi")]}])
 
     assert response.status_code == 200
     sent_body = json.loads(route.calls[0].request.content)

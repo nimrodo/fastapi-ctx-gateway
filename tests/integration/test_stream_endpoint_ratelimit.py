@@ -3,6 +3,7 @@
 import httpx
 import respx
 from fastapi.testclient import TestClient
+from support.neutral_sse import gemini_sse_event
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
@@ -43,7 +44,7 @@ def test_rate_limit_rejection_returns_429_and_never_calls_gemini(monkeypatch) ->
     with respx.mock(
         base_url="https://generativelanguage.googleapis.com", assert_all_called=False
     ) as mock:
-        route = mock.post("/v1beta/models/gemini-2.5-flash:streamGenerateContent").mock(
+        route = mock.post("/v1beta/models/gemini-3.7-flash:streamGenerateContent").mock(
             return_value=httpx.Response(200, content=b"data: {}\n\n")
         )
 
@@ -51,9 +52,9 @@ def test_rate_limit_rejection_returns_429_and_never_calls_gemini(monkeypatch) ->
         app.dependency_overrides[get_rate_limiter] = lambda: _AlwaysRejectLimiter()
         with TestClient(app) as client:
             response = client.post(
-                "/v1/gemini-2.5-flash:streamGenerateContent",
+                "/v1/gemini/gemini-3.7-flash:streamGenerateContent",
                 headers={"x-gateway-api-key": "gw-secret"},
-                json={"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+                json={"turns": [{"role": "user", "parts": [{"type": "text", "text": "hi"}]}]},
             )
 
     assert response.status_code == 429
@@ -62,12 +63,9 @@ def test_rate_limit_rejection_returns_429_and_never_calls_gemini(monkeypatch) ->
 
 
 def test_successful_stream_reconciles_actual_token_usage(monkeypatch) -> None:
-    sse_body = (
-        b'data: {"candidates":[{"content":{"parts":[{"text":"Hi"}],"role":"model"},'
-        b'"finishReason":"STOP"}],"usageMetadata":{"totalTokenCount":42}}\n\n'
-    )
+    sse_body = gemini_sse_event(text="Hi", finish_reason="STOP", total_tokens=42)
     with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:
-        mock.post("/v1beta/models/gemini-2.5-flash:streamGenerateContent").mock(
+        mock.post("/v1beta/models/gemini-3.7-flash:streamGenerateContent").mock(
             return_value=httpx.Response(
                 200, content=sse_body, headers={"content-type": "text/event-stream"}
             )
@@ -78,13 +76,13 @@ def test_successful_stream_reconciles_actual_token_usage(monkeypatch) -> None:
         app.dependency_overrides[get_rate_limiter] = lambda: limiter
         with TestClient(app) as client:
             response = client.post(
-                "/v1/gemini-2.5-flash:streamGenerateContent",
+                "/v1/gemini/gemini-3.7-flash:streamGenerateContent",
                 headers={"x-gateway-api-key": "gw-secret"},
-                json={"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+                json={"turns": [{"role": "user", "parts": [{"type": "text", "text": "hi"}]}]},
             )
 
     assert response.status_code == 200
     assert len(limiter.reconcile_calls) == 1
     key, estimated, actual = limiter.reconcile_calls[0]
-    assert key == "gw-secret:gemini-2.5-flash"
+    assert key == "gw-secret:gemini-3.7-flash"
     assert actual == 42

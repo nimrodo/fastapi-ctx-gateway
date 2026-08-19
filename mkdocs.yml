@@ -57,6 +57,7 @@ nav:
       - "0003: RedisVL semantic cache adoption": adr/0003-redisvl-semantic-cache-adoption.md
       - "0004: Sliding-window counter over exact log": adr/0004-sliding-window-counter-over-exact-log.md
       - "0005: Per-worker in-memory circuit breaker": adr/0005-per-worker-in-memory-circuit-breaker.md
+      - "0006: Neutral schema and provider abstraction": adr/0006-neutral-schema-and-provider-abstraction.md
   - Reference:
       - reference/index.md
       - App: reference/app.md
@@ -67,6 +68,7 @@ nav:
       - Pruning: reference/pruning.md
       - Circuit breaker: reference/circuit-breaker.md
       - Proxy: reference/proxy.md
+      - Providers: reference/providers.md
       - Schemas: reference/schemas.md
       - Observability: reference/observability.md
 
