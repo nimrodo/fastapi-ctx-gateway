@@ -1,12 +1,17 @@
 """The FastAPI application factory."""
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx
+import onnxruntime as ort
 import redis.asyncio as redis_asyncio
 from fastapi import FastAPI
+from redisvl.extensions.cache.llm import SemanticCache as RedisVLSemanticCache
 
+from fastapi_ctx_gateway.cache import OnnxVectorizer, SemanticCache
+from fastapi_ctx_gateway.cache.vectorizer import simple_char_code_tokenize
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import register_exception_handlers
 from fastapi_ctx_gateway.proxy.client import GeminiClient
@@ -15,6 +20,50 @@ from fastapi_ctx_gateway.ratelimit import RateLimiter
 from fastapi_ctx_gateway.routers.generate import router as generate_router
 
 __all__ = ["create_app"]
+
+logger = logging.getLogger(__name__)
+
+
+def _build_semantic_cache(settings: Settings) -> SemanticCache | None:
+    """Build the semantic cache, or None if it can't be enabled right now.
+
+    Disabled (not a startup failure) when no model is configured, the
+    model file is missing, or Redis itself is unreachable — RedisVL's
+    SemanticCache connects eagerly at construction, so a Redis outage at
+    boot would otherwise crash the whole app. The cache must never become
+    a hard dependency for serving traffic, at startup or at request time.
+    """
+    if settings.embedding_model_path is None:
+        return None
+    if not settings.embedding_model_path.exists():
+        logger.warning(
+            "embedding model not found at %s; semantic cache disabled",
+            settings.embedding_model_path,
+        )
+        return None
+    try:
+        session = ort.InferenceSession(str(settings.embedding_model_path))
+        vectorizer = OnnxVectorizer(session=session, tokenize=simple_char_code_tokenize, dims=384)
+        redis_cache = RedisVLSemanticCache(
+            name="fastapi_ctx_gateway_semantic_cache",
+            distance_threshold=settings.cache_distance_threshold,
+            ttl=settings.cache_ttl_s,
+            vectorizer=vectorizer,
+            filterable_fields=[
+                {"name": "tenant_id", "type": "tag"},
+                {"name": "model", "type": "tag"},
+            ],
+            redis_url=settings.redis_url,
+        )
+        return SemanticCache(
+            redis_cache=redis_cache,
+            vectorizer=vectorizer,
+            temperature_threshold=settings.cache_temperature_threshold,
+            lookup_timeout_s=settings.cache_lookup_timeout_ms / 1000,
+        )
+    except Exception:
+        logger.warning("failed to initialize semantic cache; disabling it", exc_info=True)
+        return None
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -47,6 +96,7 @@ def create_app(settings: Settings) -> FastAPI:
                 window_s=settings.rate_limit_window_s,
             )
             app.state.pruner = TokenBudgetPruner(settings.token_budgets)
+            app.state.semantic_cache = _build_semantic_cache(settings)
             try:
                 yield
             finally:

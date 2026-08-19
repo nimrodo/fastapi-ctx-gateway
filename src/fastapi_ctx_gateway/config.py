@@ -49,7 +49,11 @@ class Settings(BaseSettings):
     # swap for a Redis-backed lookup once onboarding needs to be dynamic.
     tenant_api_keys: dict[str, str] = {}
 
-    embedding_model_path: Path = Path("models/embedding.onnx")
+    # None (the default) disables the semantic cache entirely — a missing
+    # or unloadable model degrades to "always miss," never a boot failure,
+    # matching the cache's fail-open contract. Point this at a real
+    # exported model (see scripts/download_model.py) to enable it.
+    embedding_model_path: Path | None = None
 
     rpm_limit: int = 60
     tpm_limit: int = 100_000

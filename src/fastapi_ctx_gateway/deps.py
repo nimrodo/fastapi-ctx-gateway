@@ -5,6 +5,7 @@ Internal wiring glue, not part of the public library API.
 
 from fastapi import Request
 
+from fastapi_ctx_gateway.cache import SemanticCache
 from fastapi_ctx_gateway.proxy.client import GeminiClient
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter
@@ -26,3 +27,9 @@ def get_pruner(request: Request) -> TokenBudgetPruner:
     """Return the shared TokenBudgetPruner built once during app startup."""
     pruner: TokenBudgetPruner = request.app.state.pruner
     return pruner
+
+
+def get_semantic_cache(request: Request) -> SemanticCache | None:
+    """Return the shared SemanticCache, or None if it's disabled for this deployment."""
+    cache: SemanticCache | None = request.app.state.semantic_cache
+    return cache
