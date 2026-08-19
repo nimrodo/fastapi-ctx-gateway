@@ -7,11 +7,13 @@ The CLI entrypoint (``main``) is intentionally not re-exported here — see
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.cache import OnnxVectorizer, SemanticCache
+from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter, TokenEstimator
 
 __all__ = [
+    "CircuitBreaker",
     "OnnxVectorizer",
     "RateLimiter",
     "SemanticCache",

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -58,12 +59,20 @@ class SemanticCache:
         vectorizer: OnnxVectorizer,
         temperature_threshold: float,
         lookup_timeout_s: float,
+        on_fail_open: Callable[[], None] | None = None,
     ) -> None:
-        """Wire in the RedisVL cache, the vectorizer, and the fail-open bound."""
+        """Wire in the RedisVL cache, the vectorizer, and the fail-open bound.
+
+        `on_fail_open` (optional) fires exactly when a lookup/store failed
+        or timed out — not on a genuine cache miss — so callers can meter
+        `vector_store_fail_open_total` without this class knowing about
+        Prometheus.
+        """
         self._redis_cache = redis_cache
         self._vectorizer = vectorizer
         self._temperature_threshold = temperature_threshold
         self._lookup_timeout_s = lookup_timeout_s
+        self._on_fail_open = on_fail_open
 
     def is_eligible(
         self, tools: list[dict[str, Any]] | None, generation_config: GenerationConfig | None
@@ -79,6 +88,8 @@ class SemanticCache:
             )
         except Exception:
             logger.warning("semantic cache lookup failed; failing open", exc_info=True)
+            if self._on_fail_open is not None:
+                self._on_fail_open()
             return None
 
     async def _lookup(self, contents: list[Content], tenant_id: str, model: str) -> CacheHit | None:
@@ -104,6 +115,8 @@ class SemanticCache:
             await self._store(contents, tenant_id, model, response_text, usage)
         except Exception:
             logger.warning("semantic cache store failed; skipping", exc_info=True)
+            if self._on_fail_open is not None:
+                self._on_fail_open()
 
     async def _store(
         self,

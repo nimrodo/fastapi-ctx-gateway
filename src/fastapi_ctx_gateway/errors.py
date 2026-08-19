@@ -3,6 +3,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from fastapi_ctx_gateway.circuit_breaker import CircuitOpenError
 from fastapi_ctx_gateway.ratelimit import RateLimitExceeded
 
 __all__ = ["register_exception_handlers"]
@@ -19,4 +20,14 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=429,
             content={"error": {"message": str(exc), "status": "RESOURCE_EXHAUSTED"}},
             headers={"Retry-After": str(retry_after)},
+        )
+
+    @app.exception_handler(CircuitOpenError)
+    async def _circuit_open(request: Request, exc: CircuitOpenError) -> JSONResponse:
+        del request, exc
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": {"message": "upstream temporarily unavailable", "status": "UNAVAILABLE"}
+            },
         )

@@ -13,12 +13,17 @@ from fastapi.responses import StreamingResponse
 
 from fastapi_ctx_gateway.auth import Tenant, verify_api_key
 from fastapi_ctx_gateway.cache import CacheHit, SemanticCache
+from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker, CircuitOpenError
 from fastapi_ctx_gateway.deps import (
+    get_circuit_breaker,
     get_gemini_client,
+    get_metrics,
     get_pruner,
     get_rate_limiter,
     get_semantic_cache,
 )
+from fastapi_ctx_gateway.observability.metrics import Metrics
+from fastapi_ctx_gateway.observability.tracing import hit_path_span, pre_proxy_span
 from fastapi_ctx_gateway.proxy.client import GeminiClient
 from fastapi_ctx_gateway.proxy.streaming import StreamAccumulator, tee_stream
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
@@ -38,44 +43,58 @@ async def stream_generate_content(
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
     pruner: TokenBudgetPruner = Depends(get_pruner),
     semantic_cache: SemanticCache | None = Depends(get_semantic_cache),
+    circuit_breaker: CircuitBreaker = Depends(get_circuit_breaker),
+    metrics: Metrics = Depends(get_metrics),
 ) -> StreamingResponse:
     """Proxy a streaming generate request through to Gemini.
 
-    Sequenced deliberately: auth -> rate-limit check -> prune ->
-    cache-eligibility -> cache lookup -> (hit: return) / (miss: proxy). A
-    rejected request never reaches pruning or cache work, let alone
-    Gemini. Admission control is checked against the client's original,
-    unpruned token estimate — pruning happens only after a request has
-    already been admitted, and the cache is looked up against the
-    *pruned* contents (better hit rate, cheaper to embed).
+    Sequenced deliberately: auth -> rate-limit check -> breaker precheck
+    -> prune -> cache-eligibility -> cache lookup -> (hit: return) /
+    (miss: proxy). A rejected request never reaches pruning or cache
+    work, let alone Gemini — and the breaker check (in-memory, O(1))
+    happens before any of that, since it's the cheapest possible reject.
+    Admission control is checked against the client's original, unpruned
+    token estimate — pruning happens only after a request has already
+    been admitted, and the cache is looked up against the *pruned*
+    contents (better hit rate, cheaper to embed).
     """
-    rate_limit_key = f"{tenant.api_key}:{model}"
-    estimated_tokens = _token_estimator.estimate(
-        contents=request.contents, system_instruction=request.system_instruction
-    )
-    decision = await rate_limiter.check(rate_limit_key, estimated_tokens)
-    if not decision.allowed:
-        raise RateLimitExceeded(decision)
+    with pre_proxy_span():
+        rate_limit_key = f"{tenant.api_key}:{model}"
+        estimated_tokens = _token_estimator.estimate(
+            contents=request.contents, system_instruction=request.system_instruction
+        )
+        decision = await rate_limiter.check(rate_limit_key, estimated_tokens)
+        if not decision.allowed:
+            metrics.rate_limit_rejected.inc()
+            raise RateLimitExceeded(decision)
 
-    prune_result = pruner.prune(
-        contents=request.contents, system_instruction=request.system_instruction, model=model
-    )
-    if prune_result.pruned:
-        request = request.model_copy(update={"contents": prune_result.contents})
+        if not circuit_breaker.allow_request():
+            metrics.circuit_breaker_open.inc()
+            raise CircuitOpenError
+
+        prune_result = pruner.prune(
+            contents=request.contents, system_instruction=request.system_instruction, model=model
+        )
+        if prune_result.pruned:
+            request = request.model_copy(update={"contents": prune_result.contents})
+            metrics.prune_triggered.inc()
 
     cache_eligible = semantic_cache is not None and semantic_cache.is_eligible(
         tools=request.tools, generation_config=request.generation_config
     )
     if cache_eligible:
         assert semantic_cache is not None  # narrowed by cache_eligible
-        hit = await semantic_cache.lookup(request.contents, tenant.id, model)
+        with hit_path_span():
+            hit = await semantic_cache.lookup(request.contents, tenant.id, model)
         if hit is not None:
+            metrics.cache_hit.inc()
             return StreamingResponse(
                 _synthesize_hit_stream(hit),
                 media_type="text/event-stream",
                 headers={"X-Cache": "HIT"},
             )
 
+    metrics.cache_miss.inc()
     accumulator = StreamAccumulator()
     upstream = gemini_client.stream_generate(model, request)
     body = _stream_and_finalize(
@@ -88,6 +107,7 @@ async def stream_generate_content(
         tenant_id=tenant.id,
         model=model,
         pruned_contents=request.contents,
+        circuit_breaker=circuit_breaker,
     )
     return StreamingResponse(body, media_type="text/event-stream", headers={"X-Cache": "MISS"})
 
@@ -102,6 +122,7 @@ async def _stream_and_finalize(
     tenant_id: str,
     model: str,
     pruned_contents: list[Content],
+    circuit_breaker: CircuitBreaker,
 ):
     """Tee the stream to the client, then reconcile usage and (maybe) cache the response.
 
@@ -110,12 +131,18 @@ async def _stream_and_finalize(
     they see, and awaiting them directly avoids managing orphaned-task
     lifecycle. No finishReason observed (disconnect, upstream error) ->
     neither reconciliation nor caching happens; a partial generation is
-    never treated as complete.
+    never treated as complete, and the breaker records a failure.
     """
-    async for chunk in tee_stream(upstream, accumulator):
-        yield chunk
+    try:
+        async for chunk in tee_stream(upstream, accumulator):
+            yield chunk
+    except Exception:
+        circuit_breaker.record_failure()
+        raise
     if not accumulator.finished_cleanly:
+        circuit_breaker.record_failure()
         return
+    circuit_breaker.record_success()
     if accumulator.usage:
         actual_tokens = accumulator.usage.get("totalTokenCount")
         if actual_tokens is not None:

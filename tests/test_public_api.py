@@ -18,6 +18,7 @@ def test_reusable_components_are_exported() -> None:
         "RateLimiter",
         "TokenEstimator",
         "TokenBudgetPruner",
+        "CircuitBreaker",
     ):
         assert hasattr(fastapi_ctx_gateway, name), f"{name} should be importable standalone"
 

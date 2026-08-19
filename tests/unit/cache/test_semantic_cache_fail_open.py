@@ -72,3 +72,48 @@ async def test_lookup_fails_open_on_timeout() -> None:
     )
     hit = await cache.lookup(_contents(), "tenant-a", "model-x")
     assert hit is None
+
+
+async def test_on_fail_open_callback_fires_on_lookup_failure() -> None:
+    calls = []
+    cache = SemanticCache(
+        redis_cache=_RaisingRedisCache(),
+        vectorizer=_StubVectorizer(),
+        temperature_threshold=0.3,
+        lookup_timeout_s=1.0,
+        on_fail_open=lambda: calls.append(1),
+    )
+    await cache.lookup(_contents(), "tenant-a", "model-x")
+    assert len(calls) == 1
+
+
+async def test_on_fail_open_callback_fires_on_store_failure() -> None:
+    calls = []
+    cache = SemanticCache(
+        redis_cache=_RaisingRedisCache(),
+        vectorizer=_StubVectorizer(),
+        temperature_threshold=0.3,
+        lookup_timeout_s=1.0,
+        on_fail_open=lambda: calls.append(1),
+    )
+    await cache.store(_contents(), "tenant-a", "model-x", "hi", None)
+    assert len(calls) == 1
+
+
+async def test_on_fail_open_callback_not_called_on_genuine_miss() -> None:
+    calls = []
+
+    class _EmptyRedisCache:
+        async def acheck(self, **kwargs) -> list:
+            return []
+
+    cache = SemanticCache(
+        redis_cache=_EmptyRedisCache(),
+        vectorizer=_StubVectorizer(),
+        temperature_threshold=0.3,
+        lookup_timeout_s=1.0,
+        on_fail_open=lambda: calls.append(1),
+    )
+    hit = await cache.lookup(_contents(), "tenant-a", "model-x")
+    assert hit is None
+    assert len(calls) == 0

@@ -8,12 +8,15 @@ import httpx
 import onnxruntime as ort
 import redis.asyncio as redis_asyncio
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 from redisvl.extensions.cache.llm import SemanticCache as RedisVLSemanticCache
 
 from fastapi_ctx_gateway.cache import OnnxVectorizer, SemanticCache
 from fastapi_ctx_gateway.cache.vectorizer import simple_char_code_tokenize
+from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import register_exception_handlers
+from fastapi_ctx_gateway.observability.metrics import Metrics, build_metrics
 from fastapi_ctx_gateway.proxy.client import GeminiClient
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter
@@ -24,7 +27,7 @@ __all__ = ["create_app"]
 logger = logging.getLogger(__name__)
 
 
-def _build_semantic_cache(settings: Settings) -> SemanticCache | None:
+def _build_semantic_cache(settings: Settings, metrics: Metrics) -> SemanticCache | None:
     """Build the semantic cache, or None if it can't be enabled right now.
 
     Disabled (not a startup failure) when no model is configured, the
@@ -60,6 +63,7 @@ def _build_semantic_cache(settings: Settings) -> SemanticCache | None:
             vectorizer=vectorizer,
             temperature_threshold=settings.cache_temperature_threshold,
             lookup_timeout_s=settings.cache_lookup_timeout_ms / 1000,
+            on_fail_open=metrics.vector_store_fail_open.inc,
         )
     except Exception:
         logger.warning("failed to initialize semantic cache; disabling it", exc_info=True)
@@ -74,6 +78,13 @@ def create_app(settings: Settings) -> FastAPI:
     its own via this factory, so independently-configured instances never
     share mutable state.
     """
+    # Synchronous, in-memory singletons — no async resources involved, so
+    # built up front rather than in lifespan.
+    circuit_breaker = CircuitBreaker(
+        failure_threshold=settings.circuit_breaker_failure_threshold,
+        reset_timeout_s=settings.circuit_breaker_reset_timeout_s,
+    )
+    metrics = build_metrics()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -96,7 +107,7 @@ def create_app(settings: Settings) -> FastAPI:
                 window_s=settings.rate_limit_window_s,
             )
             app.state.pruner = TokenBudgetPruner(settings.token_budgets)
-            app.state.semantic_cache = _build_semantic_cache(settings)
+            app.state.semantic_cache = _build_semantic_cache(settings, metrics)
             try:
                 yield
             finally:
@@ -104,8 +115,15 @@ def create_app(settings: Settings) -> FastAPI:
 
     app = FastAPI(title="fastapi-ctx-gateway", lifespan=lifespan)
     app.state.settings = settings
+    app.state.circuit_breaker = circuit_breaker
+    app.state.metrics = metrics
+
     app.include_router(generate_router)
     register_exception_handlers(app)
+
+    # Shares `metrics.registry` so gateway-specific counters and generic
+    # HTTP metrics are both served from the same /metrics endpoint.
+    Instrumentator(registry=metrics.registry).instrument(app).expose(app)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
