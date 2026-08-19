@@ -24,3 +24,15 @@ curl http://localhost:8000/gateway/healthz # the mounted gateway
 `GET /gateway/gemini-2.5-flash:streamGenerateContent` behaves exactly like the
 standalone gateway (see the [tutorial](../../docs/tutorial/first-request.md)) —
 it just lives under a `/gateway` prefix here instead of at the root.
+
+## OpenAPI docs
+
+A mounted sub-app keeps its own independent OpenAPI schema — it does not appear
+inside the host app's `/docs`. The host app's Swagger UI at
+`http://localhost:8000/docs` only lists the host's own routes (`/`); the
+gateway's routes have their own docs at:
+
+```
+http://localhost:8000/gateway/docs
+http://localhost:8000/gateway/openapi.json
+```
