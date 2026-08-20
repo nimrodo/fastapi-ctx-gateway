@@ -19,12 +19,11 @@ from fastapi_ctx_gateway.providers.gemini_wire import (
 from fastapi_ctx_gateway.providers.gemini_wire import (
     Part as GeminiPart,
 )
+from fastapi_ctx_gateway.providers.sse import iter_sse_data_lines, neutral_error_event
 from fastapi_ctx_gateway.schemas.neutral import (
     BinaryPart,
     Delta,
     FinishReason,
-    NeutralError,
-    NeutralErrorEvent,
     NeutralGenerateRequest,
     NeutralStreamEvent,
     Part,
@@ -75,7 +74,7 @@ class GeminiProvider(Provider):
                         if attempts <= self._MAX_RETRIES:
                             continue
                         body = await response.aread()
-                        yield _error_event(
+                        yield neutral_error_event(
                             _status_error_message(response.status_code, body),
                             response.status_code,
                         )
@@ -87,20 +86,13 @@ class GeminiProvider(Provider):
             except httpx.HTTPError as exc:
                 if not yielded_any and attempts <= self._MAX_RETRIES:
                     continue
-                yield _error_event(str(exc), None)
+                yield neutral_error_event(str(exc), None)
                 return
 
 
 def _status_error_message(status_code: int, body: bytes) -> str:
     text = body.decode(errors="replace").strip()
     return f"Gemini returned {status_code}: {text}" if text else f"Gemini returned {status_code}"
-
-
-def _error_event(message: str, status: int | None) -> bytes:
-    payload = NeutralErrorEvent(
-        error=NeutralError(message=message, type="upstream_error", provider_status=status)
-    )
-    return f"data: {payload.model_dump_json()}\n\n".encode()
 
 
 # --- request translation: neutral -> Gemini native ---
@@ -145,36 +137,20 @@ def _to_gemini_request(request: NeutralGenerateRequest) -> GeminiRequest:
 
 
 async def _translate_sse(native_bytes: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
-    """Buffer only up to the next SSE event boundary, never the whole response.
-
-    This keeps the native-event -> neutral-event guarantee 1:1 without
-    re-chunking or adding more than one event's worth of latency.
-    """
-    buffer = b""
-    async for chunk in native_bytes:
-        buffer += chunk
-        while b"\n\n" in buffer:
-            raw_event, buffer = buffer.split(b"\n\n", 1)
-            neutral_chunk = _translate_one_event(raw_event)
-            if neutral_chunk is not None:
-                yield neutral_chunk
-    # A trailing partial buffer (no closing \n\n) has nothing to translate.
+    """Translate each Gemini-native SSE event to exactly one neutral SSE event."""
+    async for payload in iter_sse_data_lines(native_bytes):
+        neutral_chunk = _translate_one_event(payload)
+        if neutral_chunk is not None:
+            yield neutral_chunk
 
 
-def _translate_one_event(raw_event: bytes) -> bytes | None:
-    for line in raw_event.split(b"\n"):
-        if not line.startswith(b"data:"):
-            continue
-        payload = line[len(b"data:") :].strip()
-        if not payload:
-            continue
-        try:
-            event_json = json.loads(payload)
-        except ValueError:
-            continue
-        neutral_event = _gemini_delta_to_neutral(event_json)
-        return f"data: {neutral_event.model_dump_json(exclude_none=True)}\n\n".encode()
-    return None
+def _translate_one_event(payload: bytes) -> bytes | None:
+    try:
+        event_json = json.loads(payload)
+    except ValueError:
+        return None
+    neutral_event = _gemini_delta_to_neutral(event_json)
+    return f"data: {neutral_event.model_dump_json(exclude_none=True)}\n\n".encode()
 
 
 def _gemini_delta_to_neutral(event_json: dict[str, Any]) -> NeutralStreamEvent:

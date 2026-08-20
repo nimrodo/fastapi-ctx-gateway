@@ -19,6 +19,7 @@ from fastapi_ctx_gateway.errors import register_exception_handlers
 from fastapi_ctx_gateway.observability.metrics import Metrics, build_metrics
 from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.providers.gemini import GeminiProvider
+from fastapi_ctx_gateway.providers.openai import OpenAIProvider
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter
 from fastapi_ctx_gateway.routers.generate import router as generate_router
@@ -77,7 +78,17 @@ def _build_providers(settings: Settings, http_client: httpx.AsyncClient) -> dict
         api_key=settings.gemini_upstream_key.get_secret_value(),
         base_url=settings.gemini_base_url,
     )
-    return {gemini.name: gemini}
+    providers: dict[str, Provider] = {gemini.name: gemini}
+    # OpenAI is optional (unlike Gemini): unset key means simply not
+    # registered, not a boot failure — see config.py's openai_api_key.
+    if settings.openai_api_key is not None:
+        openai_provider = OpenAIProvider(
+            http_client=http_client,
+            api_key=settings.openai_api_key.get_secret_value(),
+            base_url=settings.openai_base_url,
+        )
+        providers[openai_provider.name] = openai_provider
+    return providers
 
 
 def create_app(settings: Settings) -> FastAPI:

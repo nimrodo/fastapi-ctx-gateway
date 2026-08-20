@@ -15,6 +15,30 @@ def test_settings_loads_with_defaults(monkeypatch) -> None:
     assert settings.cache_ttl_s == 3600
     assert settings.cache_temperature_threshold == 0.3
     assert settings.cache_lookup_timeout_ms == 50
+    assert settings.openai_api_key is None
+    assert settings.openai_base_url == "https://api.openai.com/v1"
+
+
+def test_settings_openai_key_is_optional_unlike_gemini(monkeypatch) -> None:
+    """Gemini is required at boot; OpenAI is an optional provider group —
+    unset means the OpenAI provider just isn't registered (see app.py).
+    """
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
+    monkeypatch.delenv("GATEWAY_OPENAI_API_KEY", raising=False)
+    settings = Settings()
+    assert settings.openai_api_key is None
+
+
+def test_settings_openai_key_can_be_set(monkeypatch) -> None:
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
+    monkeypatch.setenv("GATEWAY_OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GATEWAY_OPENAI_BASE_URL", "https://example.test/v1")
+    settings = Settings()
+    assert settings.openai_api_key is not None
+    assert settings.openai_api_key.get_secret_value() == "sk-test"
+    assert settings.openai_base_url == "https://example.test/v1"
 
 
 def test_settings_env_override(monkeypatch) -> None:

@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     gemini_upstream_key: SecretStr
     gemini_base_url: str = "https://generativelanguage.googleapis.com"
 
+    # Unlike Gemini's key, this is optional: unset (the default) means the
+    # OpenAI provider simply isn't registered (see app.py's provider
+    # registry) rather than a boot failure — a deployment that only ever
+    # calls Gemini shouldn't be forced to configure OpenAI too.
+    openai_api_key: SecretStr | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+
     cache_distance_threshold: float = 0.10
     cache_ttl_s: int = 3600
     cache_temperature_threshold: float = 0.3

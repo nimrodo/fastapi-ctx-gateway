@@ -2,5 +2,6 @@
 
 from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.providers.gemini import GeminiProvider
+from fastapi_ctx_gateway.providers.openai import OpenAIProvider
 
-__all__ = ["GeminiProvider", "Provider"]
+__all__ = ["GeminiProvider", "OpenAIProvider", "Provider"]

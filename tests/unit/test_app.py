@@ -25,3 +25,16 @@ def test_create_app_builds_independent_instances(monkeypatch) -> None:
     app_a = create_app(_settings(monkeypatch))
     app_b = create_app(_settings(monkeypatch))
     assert app_a is not app_b
+
+
+def test_openai_provider_not_registered_when_key_unset(monkeypatch) -> None:
+    app = create_app(_settings(monkeypatch))
+    with TestClient(app):
+        assert set(app.state.providers) == {"gemini"}
+
+
+def test_openai_provider_registered_when_key_set(monkeypatch) -> None:
+    monkeypatch.setenv("GATEWAY_OPENAI_API_KEY", "sk-test")
+    app = create_app(_settings(monkeypatch))
+    with TestClient(app):
+        assert set(app.state.providers) == {"gemini", "openai"}

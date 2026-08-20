@@ -47,6 +47,8 @@ All settings are environment variables prefixed `GATEWAY_` (or a `.env` file —
 | `GATEWAY_REDIS_URL` | `redis://localhost:6379` | Shared state store |
 | `GATEWAY_GEMINI_UPSTREAM_KEY` | *(required)* | Gemini API key, sent as `x-goog-api-key` |
 | `GATEWAY_GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` | |
+| `GATEWAY_OPENAI_API_KEY` | *(unset)* | Optional. Unset disables the `openai` provider entirely — never a boot failure |
+| `GATEWAY_OPENAI_BASE_URL` | `https://api.openai.com/v1` | |
 | `GATEWAY_TENANT_API_KEYS` | *(required)* | JSON map of gateway-issued key → tenant id |
 | `GATEWAY_EMBEDDING_MODEL_PATH` | *(unset)* | Path to an ONNX embedding model. Unset disables the semantic cache entirely — never a boot failure. |
 | `GATEWAY_CACHE_DISTANCE_THRESHOLD` | `0.10` | Cosine distance cutoff for a cache hit |

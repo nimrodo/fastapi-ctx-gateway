@@ -1,6 +1,6 @@
 # Your first request
 
-The gateway speaks its own **neutral** request/response contract, not a given provider's native wire format — a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from whichever upstream API you're calling. Gemini is the built-in provider today (path segment `gemini`); see [ADR-0006](../adr/0006-neutral-schema-and-provider-abstraction.md) for why.
+The gateway speaks its own **neutral** request/response contract, not a given provider's native wire format — a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from whichever upstream API you're calling. The request body and streamed response look identical no matter which provider handles the call — only the `{provider}` path segment changes. Two providers ship today: `gemini` (always on) and `openai` (registered only once `GATEWAY_OPENAI_API_KEY` is set — see [Configuration](configuration.md)). See [ADR-0006](../adr/0006-neutral-schema-and-provider-abstraction.md) for why.
 
 ## Make a request
 
@@ -42,6 +42,18 @@ The route shape is `POST /v1/{provider}/{model}:streamGenerateContent`.
             print(chunk.decode(), end="")
     ```
 
+## Switching providers
+
+Same body, same response shape — only the URL changes:
+
+```bash
+curl -N -X POST \
+  http://localhost:8000/v1/openai/gpt-4o:streamGenerateContent \
+  -H "x-gateway-api-key: my-gateway-key" \
+  -H "Content-Type: application/json" \
+  -d '{"turns": [{"role": "user", "parts": [{"type": "text", "text": "Explain HTTP streaming in one sentence."}]}]}'
+```
+
 ## What comes back
 
 An SSE stream of neutral `data: {...}` events — each carrying a `delta.parts[]` text fragment, with a terminal chunk carrying `finish_reason` and `usage`. The gateway translates the upstream provider's own streamed events into these one-for-one as they arrive; it doesn't buffer the whole response first.
@@ -61,10 +73,12 @@ curl -i -X POST http://localhost:8000/v1/gemini/gemini-3.7-flash:streamGenerateC
 # HTTP/1.1 401 Unauthorized
 ```
 
-## Unknown provider
+## Unknown or unconfigured provider
+
+A `{provider}` segment the gateway doesn't recognize, or one it recognizes but isn't configured for (e.g. `openai` with no `GATEWAY_OPENAI_API_KEY` set), both 404 the same way:
 
 ```bash
-curl -i -X POST http://localhost:8000/v1/openai/gpt-4o:streamGenerateContent \
+curl -i -X POST http://localhost:8000/v1/not-a-real-provider/some-model:streamGenerateContent \
   -H "x-gateway-api-key: my-gateway-key" -d '{"turns": []}'
 # HTTP/1.1 404 Not Found
 ```
