@@ -50,6 +50,7 @@ nav:
       - Multi-tenant keys: advanced/multi-tenant-keys.md
       - Deployment: advanced/deployment.md
       - Extending pruning: advanced/extending-pruning.md
+      - Adding a provider: advanced/adding-a-provider.md
   - Concepts & glossary: concepts.md
   - Design decisions:
       - "0001: Gemini classic API over Interactions API": adr/0001-gemini-classic-api-over-interactions-api.md

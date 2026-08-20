@@ -8,7 +8,7 @@ This README covers the essentials; the full docs (built with [MkDocs](mkdocs.yml
 
 **Tutorial** — [Installation & quickstart](docs/tutorial/index.md) · [Your first request](docs/tutorial/first-request.md) · [Configuration](docs/tutorial/configuration.md) · [Rate limiting](docs/tutorial/rate-limiting.md) · [Context pruning](docs/tutorial/context-pruning.md) · [Semantic caching](docs/tutorial/semantic-caching.md) · [Circuit breaker](docs/tutorial/circuit-breaker.md) · [Observability](docs/tutorial/observability.md) · [Using it as a library](docs/tutorial/using-as-a-library.md)
 
-**Advanced** — [Custom vectorizer](docs/advanced/custom-vectorizer.md) · [Multi-tenant keys](docs/advanced/multi-tenant-keys.md) · [Deployment](docs/advanced/deployment.md) · [Extending pruning](docs/advanced/extending-pruning.md)
+**Advanced** — [Custom vectorizer](docs/advanced/custom-vectorizer.md) · [Multi-tenant keys](docs/advanced/multi-tenant-keys.md) · [Deployment](docs/advanced/deployment.md) · [Extending pruning](docs/advanced/extending-pruning.md) · [Adding a provider](docs/advanced/adding-a-provider.md)
 
 **Design decisions (ADRs)** — [0001: Gemini classic API over Interactions API](docs/adr/0001-gemini-classic-api-over-interactions-api.md) · [0002: Redis VSS over Qdrant](docs/adr/0002-redis-vss-over-qdrant.md) · [0003: RedisVL semantic cache adoption](docs/adr/0003-redisvl-semantic-cache-adoption.md) · [0004: Sliding-window counter over exact log](docs/adr/0004-sliding-window-counter-over-exact-log.md) · [0005: Per-worker in-memory circuit breaker](docs/adr/0005-per-worker-in-memory-circuit-breaker.md) · [0006: Neutral schema and provider abstraction](docs/adr/0006-neutral-schema-and-provider-abstraction.md)
 
