@@ -1,13 +1,27 @@
 # fastapi-ctx-gateway
 
-A context-aware agentic API gateway for Google's Gemini API. It sits between clients and Gemini, handling stream proxying, semantic caching, token-aware rate limiting, and context pruning at the edge — with a target overhead budget of ~15-20ms on a cache-hit path.
+A context-aware agentic API gateway for LLM APIs (Gemini and OpenAI today). It sits between clients and the upstream provider, handling stream proxying, semantic caching, token-aware rate limiting, and context pruning at the edge — with a target overhead budget of ~15-20ms on a cache-hit path.
+
+## Documentation
+
+This README covers the essentials; the full docs (built with [MkDocs](mkdocs.yml)) go deeper. Everything below lives under [`docs/`](docs/), except the glossary.
+
+**Tutorial** — [Installation & quickstart](docs/tutorial/index.md) · [Your first request](docs/tutorial/first-request.md) · [Configuration](docs/tutorial/configuration.md) · [Rate limiting](docs/tutorial/rate-limiting.md) · [Context pruning](docs/tutorial/context-pruning.md) · [Semantic caching](docs/tutorial/semantic-caching.md) · [Circuit breaker](docs/tutorial/circuit-breaker.md) · [Observability](docs/tutorial/observability.md) · [Using it as a library](docs/tutorial/using-as-a-library.md)
+
+**Advanced** — [Custom vectorizer](docs/advanced/custom-vectorizer.md) · [Multi-tenant keys](docs/advanced/multi-tenant-keys.md) · [Deployment](docs/advanced/deployment.md) · [Extending pruning](docs/advanced/extending-pruning.md)
+
+**Design decisions (ADRs)** — [0001: Gemini classic API over Interactions API](docs/adr/0001-gemini-classic-api-over-interactions-api.md) · [0002: Redis VSS over Qdrant](docs/adr/0002-redis-vss-over-qdrant.md) · [0003: RedisVL semantic cache adoption](docs/adr/0003-redisvl-semantic-cache-adoption.md) · [0004: Sliding-window counter over exact log](docs/adr/0004-sliding-window-counter-over-exact-log.md) · [0005: Per-worker in-memory circuit breaker](docs/adr/0005-per-worker-in-memory-circuit-breaker.md) · [0006: Neutral schema and provider abstraction](docs/adr/0006-neutral-schema-and-provider-abstraction.md)
+
+**Reference** (auto-generated from docstrings) — [Overview](docs/reference/index.md) · [App](docs/reference/app.md) · [Config](docs/reference/config.md) · [Auth](docs/reference/auth.md) · [Cache](docs/reference/cache.md) · [Rate limiting](docs/reference/ratelimit.md) · [Pruning](docs/reference/pruning.md) · [Circuit breaker](docs/reference/circuit-breaker.md) · [Proxy](docs/reference/proxy.md) · [Providers](docs/reference/providers.md) · [Schemas](docs/reference/schemas.md) · [Observability](docs/reference/observability.md)
+
+**Glossary** — [`CONTEXT.md`](CONTEXT.md) (domain vocabulary, also rendered as [Concepts & glossary](docs/concepts.md) in the MkDocs nav)
 
 ## Architecture
 
-The gateway speaks its own neutral request/response contract; a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from each upstream API (Gemini today — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md)). Every request is measured against two separate latency budgets:
+The gateway speaks its own neutral request/response contract; a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from each upstream API (Gemini and OpenAI today — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md)). Every request is measured against two separate latency budgets:
 
-- **Cache-hit path** (embed + Redis lookup + response synthesis, no Gemini call): target ≤15-20ms total.
-- **Cache-miss path** (auth + rate-limit + prune, before the Gemini call): target low single-digit ms, additive to whatever Gemini itself takes.
+- **Cache-hit path** (embed + Redis lookup + response synthesis, no provider call): target ≤15-20ms total.
+- **Cache-miss path** (auth + rate-limit + prune, before the provider call): target low single-digit ms, additive to whatever the provider itself takes.
 
 Request lifecycle: **auth → rate-limit check → circuit-breaker precheck → prune → cache-eligibility → cache lookup → (hit: return) / (miss: proxy, tee, finalize)**. A rejected or short-circuited request never reaches the more expensive steps downstream of it. See `CONTEXT.md` for the domain vocabulary and `docs/adr/` for why each major fork was decided the way it was.
 

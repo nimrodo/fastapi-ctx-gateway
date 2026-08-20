@@ -8,7 +8,8 @@ Start with [App](app.md) for `create_app()` and [Config](config.md) for `Setting
 - [Rate limiting](ratelimit.md) — `RateLimiter`, `TokenEstimator`
 - [Pruning](pruning.md) — `TokenBudgetPruner`
 - [Circuit breaker](circuit-breaker.md) — `CircuitBreaker`, `CircuitState`
-- [Proxy](proxy.md) — `GeminiClient`, streaming/retry helpers
-- [Schemas](schemas.md) — the Gemini wire-schema models
+- [Proxy](proxy.md) — streaming/retry helpers shared by every provider
+- [Providers](providers.md) — `Provider`, `GeminiProvider`, `OpenAIProvider`
+- [Schemas](schemas.md) — the neutral request/response/error contract
 - [Auth](auth.md) — `Tenant`, `resolve_tenant`
 - [Observability](observability.md) — metrics and tracing helpers
