@@ -1,6 +1,7 @@
 """Router-level test: domain counters increment on the right paths, and /metrics serves them."""
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 from support.neutral_sse import gemini_sse_event
@@ -9,6 +10,8 @@ from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.circuit_breaker import CircuitState
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.deps import get_circuit_breaker
+
+pytestmark = pytest.mark.integration
 
 
 def _settings(monkeypatch) -> Settings:

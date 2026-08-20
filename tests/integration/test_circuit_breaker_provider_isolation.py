@@ -1,12 +1,15 @@
 """An open circuit breaker on one provider must never short-circuit another."""
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 from support.neutral_sse import gemini_sse_event
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
+
+pytestmark = pytest.mark.integration
 
 
 def _settings(monkeypatch) -> Settings:

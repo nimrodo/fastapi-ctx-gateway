@@ -3,11 +3,14 @@
 import json
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings, TokenBudgetConfig
+
+pytestmark = pytest.mark.integration
 
 TINY_BUDGET_MODEL = "gemini-3.7-flash"
 

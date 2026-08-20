@@ -4,6 +4,7 @@ from pathlib import Path
 
 import httpx
 import onnxruntime as ort
+import pytest
 import redis.asyncio as redis_asyncio
 import respx
 from fastapi.testclient import TestClient
@@ -13,6 +14,8 @@ import fastapi_ctx_gateway.app as app_module
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.providers import gemini as gemini_provider_module
+
+pytestmark = pytest.mark.integration
 
 FIXTURE_MODEL_PATH = str(
     Path(__file__).parent.parent / "fixtures" / "tiny_onnx_model" / "model.onnx"

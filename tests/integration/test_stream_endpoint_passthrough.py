@@ -1,12 +1,15 @@
 """End-to-end test: POST to the streaming endpoint translates Gemini's SSE to neutral SSE."""
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 from support.neutral_sse import gemini_sse_event, neutral_sse_event
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
+
+pytestmark = pytest.mark.integration
 
 GEMINI_SSE_BODY = gemini_sse_event(text="Hel") + gemini_sse_event(
     text="lo", finish_reason="STOP", total_tokens=5

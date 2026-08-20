@@ -1,12 +1,15 @@
 """Router-level test: a pre-stream Gemini failure is retried once, end to end."""
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 from support.neutral_sse import gemini_sse_event, neutral_sse_event
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
+
+pytestmark = pytest.mark.integration
 
 
 def _settings(monkeypatch) -> Settings:

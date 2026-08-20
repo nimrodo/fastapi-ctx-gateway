@@ -1,6 +1,7 @@
 """Router-level test: an open circuit breaker short-circuits before cache/Gemini."""
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 
@@ -8,6 +9,8 @@ from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.circuit_breaker import CircuitState
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.deps import get_circuit_breaker
+
+pytestmark = pytest.mark.integration
 
 
 class _AlwaysOpenBreaker:

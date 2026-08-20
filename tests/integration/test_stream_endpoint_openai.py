@@ -1,11 +1,14 @@
 """Router-level test: the OpenAI provider works end to end through the same route shape."""
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
+
+pytestmark = pytest.mark.integration
 
 OPENAI_SSE_BODY = (
     b'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"Hel"},'

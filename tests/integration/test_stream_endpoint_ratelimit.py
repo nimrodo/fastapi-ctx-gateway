@@ -1,6 +1,7 @@
 """Router-level test: rate-limit rejection short-circuits before proxying to Gemini."""
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 from support.neutral_sse import gemini_sse_event
@@ -9,6 +10,8 @@ from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.deps import get_rate_limiter
 from fastapi_ctx_gateway.ratelimit import RateLimitDecision
+
+pytestmark = pytest.mark.integration
 
 
 class _AlwaysRejectLimiter:
