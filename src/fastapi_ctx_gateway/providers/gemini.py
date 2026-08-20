@@ -19,7 +19,11 @@ from fastapi_ctx_gateway.providers.gemini_wire import (
 from fastapi_ctx_gateway.providers.gemini_wire import (
     Part as GeminiPart,
 )
-from fastapi_ctx_gateway.providers.sse import iter_sse_data_lines, neutral_error_event
+from fastapi_ctx_gateway.providers.sse import (
+    iter_sse_data_lines,
+    neutral_error_event,
+    parse_error_message,
+)
 from fastapi_ctx_gateway.schemas.neutral import (
     BinaryPart,
     Delta,
@@ -75,7 +79,7 @@ class GeminiProvider(Provider):
                             continue
                         body = await response.aread()
                         yield neutral_error_event(
-                            _status_error_message(response.status_code, body),
+                            parse_error_message("Gemini", response.status_code, body),
                             response.status_code,
                         )
                         return
@@ -88,11 +92,6 @@ class GeminiProvider(Provider):
                     continue
                 yield neutral_error_event(str(exc), None)
                 return
-
-
-def _status_error_message(status_code: int, body: bytes) -> str:
-    text = body.decode(errors="replace").strip()
-    return f"Gemini returned {status_code}: {text}" if text else f"Gemini returned {status_code}"
 
 
 # --- request translation: neutral -> Gemini native ---

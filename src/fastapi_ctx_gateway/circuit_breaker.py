@@ -1,9 +1,11 @@
-"""Per-worker in-memory circuit breaker for calls to Gemini.
+"""Per-worker in-memory circuit breaker for calls to one upstream provider.
 
 Deliberately in-memory, not Redis-backed: a synchronous cross-worker
 check would reintroduce the exact round-trip cost this exists to avoid
 during an incident. State is best-effort propagated to Redis elsewhere
-(dashboards only) — never read back for the trip decision.
+(dashboards only) — never read back for the trip decision. The gateway
+builds one instance per registered provider (see app.py) so an outage on
+one upstream never trips the breaker for an unrelated one.
 """
 
 import time

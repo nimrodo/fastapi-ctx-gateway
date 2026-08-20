@@ -41,9 +41,16 @@ def get_semantic_cache(request: Request) -> SemanticCache | None:
     return cache
 
 
-def get_circuit_breaker(request: Request) -> CircuitBreaker:
-    """Return the shared, per-worker CircuitBreaker built once during app startup."""
-    breaker: CircuitBreaker = request.app.state.circuit_breaker
+def get_circuit_breaker(provider_name: str, request: Request) -> CircuitBreaker:
+    """Return the named provider's own CircuitBreaker, or 404 if unknown.
+
+    One breaker per registered provider (see app.py) — an outage on one
+    upstream must never short-circuit requests to an unrelated one.
+    """
+    breakers: dict[str, CircuitBreaker] = request.app.state.circuit_breakers
+    breaker = breakers.get(provider_name)
+    if breaker is None:
+        raise ProviderNotFoundError(provider_name)
     return breaker
 
 

@@ -17,6 +17,7 @@ def test_settings_loads_with_defaults(monkeypatch) -> None:
     assert settings.cache_lookup_timeout_ms == 50
     assert settings.openai_api_key is None
     assert settings.openai_base_url == "https://api.openai.com/v1"
+    assert settings.openai_include_usage is True
 
 
 def test_settings_openai_key_is_optional_unlike_gemini(monkeypatch) -> None:
@@ -39,6 +40,15 @@ def test_settings_openai_key_can_be_set(monkeypatch) -> None:
     assert settings.openai_api_key is not None
     assert settings.openai_api_key.get_secret_value() == "sk-test"
     assert settings.openai_base_url == "https://example.test/v1"
+
+
+def test_settings_openai_include_usage_can_be_disabled(monkeypatch) -> None:
+    """For an OpenAI-compatible server that rejects stream_options.include_usage."""
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
+    monkeypatch.setenv("GATEWAY_OPENAI_INCLUDE_USAGE", "false")
+    settings = Settings()
+    assert settings.openai_include_usage is False
 
 
 def test_settings_env_override(monkeypatch) -> None:

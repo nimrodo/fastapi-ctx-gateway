@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_base_url: str = "https://api.openai.com/v1"
 
+    # Real OpenAI supports stream_options.include_usage; some self-hosted
+    # "OpenAI-compatible" servers (vLLM, Ollama, ...) reject the field with
+    # a 400. Set to false for those deployments — see ADR-0006.
+    openai_include_usage: bool = True
+
     cache_distance_threshold: float = 0.10
     cache_ttl_s: int = 3600
     cache_temperature_threshold: float = 0.3

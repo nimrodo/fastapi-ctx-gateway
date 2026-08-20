@@ -26,6 +26,19 @@ def test_translates_turns_and_keeps_role_names_as_is() -> None:
     assert body["messages"][0]["content"] == [{"type": "text", "text": "hi"}]
 
 
+def test_include_usage_true_by_default() -> None:
+    request = NeutralGenerateRequest(turns=[Turn(role="user", parts=[TextPart(text="hi")])])
+    body = _to_openai_request("gpt-4o", request)
+    assert body["stream_options"] == {"include_usage": True}
+
+
+def test_include_usage_false_omits_stream_options_entirely() -> None:
+    """For an OpenAI-compatible server that 400s on an unrecognized field."""
+    request = NeutralGenerateRequest(turns=[Turn(role="user", parts=[TextPart(text="hi")])])
+    body = _to_openai_request("gpt-4o", request, include_usage=False)
+    assert "stream_options" not in body
+
+
 def test_translates_system_to_a_leading_system_message() -> None:
     request = NeutralGenerateRequest(
         turns=[Turn(role="user", parts=[TextPart(text="hi")])],

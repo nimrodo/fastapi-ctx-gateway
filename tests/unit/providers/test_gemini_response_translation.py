@@ -91,6 +91,25 @@ async def test_stream_yields_neutral_error_event_on_non_2xx_response() -> None:
     assert payload["error"]["provider_status"] == 500
 
 
+async def test_stream_error_message_extracted_from_json_error_envelope() -> None:
+    request = NeutralGenerateRequest(turns=[Turn(role="user", parts=[TextPart(text="hi")])])
+    error_body = json.dumps({"error": {"message": "API key not valid", "code": 400}}).encode()
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:
+        mock.post("/v1beta/models/gemini-3.7-flash:streamGenerateContent").mock(
+            return_value=httpx.Response(400, content=error_body)
+        )
+        async with httpx.AsyncClient() as http_client:
+            provider = GeminiProvider(
+                http_client=http_client,
+                api_key="k",
+                base_url="https://generativelanguage.googleapis.com",
+            )
+            chunks = [c async for c in provider.stream("gemini-3.7-flash", request)]
+
+    payload = _payload(chunks[0])
+    assert payload["error"]["message"] == "Gemini returned 400: API key not valid"
+
+
 async def test_stream_yields_neutral_error_event_on_transport_failure() -> None:
     request = NeutralGenerateRequest(turns=[Turn(role="user", parts=[TextPart(text="hi")])])
     with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:

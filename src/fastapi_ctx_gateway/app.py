@@ -72,6 +72,27 @@ def _build_semantic_cache(settings: Settings, metrics: Metrics) -> SemanticCache
         return None
 
 
+def _openai_is_configured(settings: Settings) -> bool:
+    # An empty string is almost certainly a misconfiguration (a blank .env
+    # line, a secret that resolved empty) rather than an intentional key —
+    # treat it the same as unset instead of registering a provider that
+    # can never authenticate.
+    return bool(settings.openai_api_key and settings.openai_api_key.get_secret_value())
+
+
+def _registered_provider_names(settings: Settings) -> list[str]:
+    """The provider names this Settings will register.
+
+    Known before any async resource (http_client, etc.) exists, so circuit
+    breakers can be built for exactly these providers up front, alongside
+    the providers themselves in lifespan.
+    """
+    names = [GeminiProvider.name]
+    if _openai_is_configured(settings):
+        names.append(OpenAIProvider.name)
+    return names
+
+
 def _build_providers(settings: Settings, http_client: httpx.AsyncClient) -> dict[str, Provider]:
     gemini = GeminiProvider(
         http_client=http_client,
@@ -79,13 +100,15 @@ def _build_providers(settings: Settings, http_client: httpx.AsyncClient) -> dict
         base_url=settings.gemini_base_url,
     )
     providers: dict[str, Provider] = {gemini.name: gemini}
-    # OpenAI is optional (unlike Gemini): unset key means simply not
+    # OpenAI is optional (unlike Gemini): unset/empty key means simply not
     # registered, not a boot failure — see config.py's openai_api_key.
-    if settings.openai_api_key is not None:
+    if _openai_is_configured(settings):
+        assert settings.openai_api_key is not None  # narrowed by _openai_is_configured
         openai_provider = OpenAIProvider(
             http_client=http_client,
             api_key=settings.openai_api_key.get_secret_value(),
             base_url=settings.openai_base_url,
+            include_usage=settings.openai_include_usage,
         )
         providers[openai_provider.name] = openai_provider
     return providers
@@ -100,11 +123,16 @@ def create_app(settings: Settings) -> FastAPI:
     share mutable state.
     """
     # Synchronous, in-memory singletons — no async resources involved, so
-    # built up front rather than in lifespan.
-    circuit_breaker = CircuitBreaker(
-        failure_threshold=settings.circuit_breaker_failure_threshold,
-        reset_timeout_s=settings.circuit_breaker_reset_timeout_s,
-    )
+    # built up front rather than in lifespan. One breaker per registered
+    # provider (not one shared globally): an outage on one upstream must
+    # not short-circuit requests to an unrelated one.
+    circuit_breakers = {
+        name: CircuitBreaker(
+            failure_threshold=settings.circuit_breaker_failure_threshold,
+            reset_timeout_s=settings.circuit_breaker_reset_timeout_s,
+        )
+        for name in _registered_provider_names(settings)
+    }
     metrics = build_metrics()
 
     @asynccontextmanager
@@ -132,7 +160,7 @@ def create_app(settings: Settings) -> FastAPI:
 
     app = FastAPI(title="fastapi-ctx-gateway", lifespan=lifespan)
     app.state.settings = settings
-    app.state.circuit_breaker = circuit_breaker
+    app.state.circuit_breakers = circuit_breakers
     app.state.metrics = metrics
 
     app.include_router(generate_router)

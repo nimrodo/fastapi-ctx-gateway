@@ -7,7 +7,11 @@ from typing import Any
 import httpx
 
 from fastapi_ctx_gateway.providers.base import Provider
-from fastapi_ctx_gateway.providers.sse import iter_sse_data_lines, neutral_error_event
+from fastapi_ctx_gateway.providers.sse import (
+    iter_sse_data_lines,
+    neutral_error_event,
+    parse_error_message,
+)
 from fastapi_ctx_gateway.schemas.neutral import (
     BinaryPart,
     Delta,
@@ -39,15 +43,28 @@ class OpenAIProvider(Provider):
     # for a failure before any bytes reached the client.
     _MAX_RETRIES = 1
 
-    def __init__(self, http_client: httpx.AsyncClient, api_key: str, base_url: str) -> None:
-        """Wrap a shared client with the credentials/base URL for one deployment."""
+    def __init__(
+        self,
+        http_client: httpx.AsyncClient,
+        api_key: str,
+        base_url: str,
+        include_usage: bool = True,
+    ) -> None:
+        """Wrap a shared client with the credentials/base URL for one deployment.
+
+        `include_usage` controls whether `stream_options.include_usage` is
+        sent — real OpenAI supports it, but some self-hosted
+        "OpenAI-compatible" servers reject the field with a 400. Disable it
+        for those deployments (`GATEWAY_OPENAI_INCLUDE_USAGE=false`).
+        """
         self._http_client = http_client
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._include_usage = include_usage
 
     async def stream(self, model: str, request: NeutralGenerateRequest) -> AsyncIterator[bytes]:
         """Call OpenAI and yield neutral SSE bytes, one native event per yielded chunk."""
-        native_body = _to_openai_request(model, request)
+        native_body = _to_openai_request(model, request, include_usage=self._include_usage)
         url = f"{self._base_url}/chat/completions"
         headers = {"Authorization": f"Bearer {self._api_key}", "content-type": "application/json"}
         attempts = 0
@@ -63,7 +80,7 @@ class OpenAIProvider(Provider):
                             continue
                         body = await response.aread()
                         yield neutral_error_event(
-                            _status_error_message(response.status_code, body),
+                            parse_error_message("OpenAI", response.status_code, body),
                             response.status_code,
                         )
                         return
@@ -76,11 +93,6 @@ class OpenAIProvider(Provider):
                     continue
                 yield neutral_error_event(str(exc), None)
                 return
-
-
-def _status_error_message(status_code: int, body: bytes) -> str:
-    text = body.decode(errors="replace").strip()
-    return f"OpenAI returned {status_code}: {text}" if text else f"OpenAI returned {status_code}"
 
 
 # --- request translation: neutral -> OpenAI native ---
@@ -97,7 +109,9 @@ def _turn_to_openai_message(role: str, parts: list[Part]) -> dict[str, Any]:
     return {"role": role, "content": [_part_to_openai_content(p) for p in parts]}
 
 
-def _to_openai_request(model: str, request: NeutralGenerateRequest) -> dict[str, Any]:
+def _to_openai_request(
+    model: str, request: NeutralGenerateRequest, include_usage: bool = True
+) -> dict[str, Any]:
     messages: list[dict[str, Any]] = []
     if request.system:
         messages.append(_turn_to_openai_message("system", request.system))
@@ -107,8 +121,9 @@ def _to_openai_request(model: str, request: NeutralGenerateRequest) -> dict[str,
         "model": model,
         "messages": messages,
         "stream": True,
-        "stream_options": {"include_usage": True},
     }
+    if include_usage:
+        body["stream_options"] = {"include_usage": True}
     if request.tools:
         body["tools"] = request.tools
     if request.tool_config:

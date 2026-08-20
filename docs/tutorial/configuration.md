@@ -30,8 +30,9 @@ GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-3.7-flash": 32000, "gemini-2.5-pro":
 | `GATEWAY_REDIS_URL` | `redis://localhost:6379` | Shared state store (rate limits, semantic cache) |
 | `GATEWAY_GEMINI_UPSTREAM_KEY` | *(required)* | Sent to Gemini as `x-goog-api-key` |
 | `GATEWAY_GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` | |
-| `GATEWAY_OPENAI_API_KEY` | *(unset)* | Sent to OpenAI as `Authorization: Bearer`. Unlike Gemini's key, unset simply means the `openai` provider isn't registered — never a boot failure |
+| `GATEWAY_OPENAI_API_KEY` | *(unset)* | Sent to OpenAI as `Authorization: Bearer`. Unlike Gemini's key, unset (or blank) simply means the `openai` provider isn't registered — never a boot failure |
 | `GATEWAY_OPENAI_BASE_URL` | `https://api.openai.com/v1` | |
+| `GATEWAY_OPENAI_INCLUDE_USAGE` | `true` | Whether requests ask for `stream_options.include_usage`. Disable for an OpenAI-compatible server that rejects the field — see ADR-0006 |
 | `GATEWAY_TENANT_API_KEYS` | *(required)* | JSON map of gateway-issued key → tenant id |
 | `GATEWAY_EMBEDDING_MODEL_PATH` | *(unset)* | ONNX embedding model path. Unset disables the semantic cache — never a boot failure |
 | `GATEWAY_CACHE_DISTANCE_THRESHOLD` | `0.10` | Cosine distance cutoff for a cache hit |
