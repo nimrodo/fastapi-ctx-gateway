@@ -48,7 +48,8 @@ def build_metrics(registry: CollectorRegistry | None = None) -> Metrics:
         ),
         circuit_breaker_open=Counter(
             "circuit_breaker_open_total",
-            "Requests short-circuited because the Gemini circuit breaker was open",
+            "Requests short-circuited because that provider's circuit breaker was open",
+            ["provider"],
             registry=registry,
         ),
         vector_store_fail_open=Counter(

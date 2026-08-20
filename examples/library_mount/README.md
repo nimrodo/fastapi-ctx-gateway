@@ -16,6 +16,11 @@ export GATEWAY_GEMINI_UPSTREAM_KEY=your-real-gemini-key
 # tenant id. Required — with no entries, every request gets 401.
 export GATEWAY_TENANT_API_KEYS='{"my-gateway-key":"local-dev"}'
 
+# Optional: registers a second provider at /gateway/v1/openai/... alongside
+# Gemini. Nothing in app.py changes for this — create_app(Settings()) reads
+# whichever provider credentials are set.
+export GATEWAY_OPENAI_API_KEY=your-real-openai-key
+
 uv run uvicorn examples.library_mount.app:app --app-dir . --reload
 ```
 
@@ -35,6 +40,17 @@ behaves exactly like the standalone gateway (see the
 `GATEWAY_GEMINI_UPSTREAM_KEY` you'll get a proxied error from Gemini itself
 as a neutral SSE error event, not a gateway error — that means everything up
 to the upstream call is working; use a real key to see an actual generation.
+
+If `GATEWAY_OPENAI_API_KEY` is set, the same mounted app also answers
+`POST /gateway/v1/openai/gpt-4o:streamGenerateContent` — same headers, same
+neutral-schema body, just a different `{provider}` path segment:
+
+```bash
+curl -N -X POST http://localhost:8000/gateway/v1/openai/gpt-4o:streamGenerateContent \
+  -H "x-gateway-api-key: my-gateway-key" \
+  -H "Content-Type: application/json" \
+  -d '{"turns": [{"role": "user", "parts": [{"type": "text", "text": "hi"}]}]}'
+```
 
 ## OpenAPI docs
 

@@ -15,8 +15,18 @@ def test_each_counter_starts_at_zero() -> None:
     assert _value(metrics.cache_miss) == 0
     assert _value(metrics.prune_triggered) == 0
     assert _value(metrics.rate_limit_rejected) == 0
-    assert _value(metrics.circuit_breaker_open) == 0
     assert _value(metrics.vector_store_fail_open) == 0
+
+
+def test_circuit_breaker_open_is_labeled_by_provider_and_starts_unset() -> None:
+    metrics = build_metrics(CollectorRegistry())
+    # A labeled counter has no samples at all until first incremented for
+    # a given label combination - unlike the unlabeled counters above.
+    assert metrics.circuit_breaker_open.collect()[0].samples == []
+    metrics.circuit_breaker_open.labels(provider="gemini").inc()
+    sample = metrics.circuit_breaker_open.collect()[0].samples[0]
+    assert sample.labels == {"provider": "gemini"}
+    assert sample.value == 1
 
 
 def test_counters_increment_independently() -> None:

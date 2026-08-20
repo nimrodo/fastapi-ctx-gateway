@@ -74,7 +74,7 @@ async def stream_generate_content(
             raise RateLimitExceeded(decision)
 
         if not circuit_breaker.allow_request():
-            metrics.circuit_breaker_open.inc()
+            metrics.circuit_breaker_open.labels(provider=provider.name).inc()
             raise CircuitOpenError
 
         prune_result = pruner.prune(turns=request.turns, system=request.system, model=model)

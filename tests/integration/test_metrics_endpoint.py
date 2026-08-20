@@ -6,7 +6,9 @@ from fastapi.testclient import TestClient
 from support.neutral_sse import gemini_sse_event
 
 from fastapi_ctx_gateway.app import create_app
+from fastapi_ctx_gateway.circuit_breaker import CircuitState
 from fastapi_ctx_gateway.config import Settings
+from fastapi_ctx_gateway.deps import get_circuit_breaker
 
 
 def _settings(monkeypatch) -> Settings:
@@ -17,6 +19,26 @@ def _settings(monkeypatch) -> Settings:
 
 def _counter_value(counter) -> float:
     return counter.collect()[0].samples[0].value
+
+
+def _labeled_counter_value(counter, **labels) -> float:
+    for sample in counter.collect()[0].samples:
+        if sample.labels == labels:
+            return sample.value
+    return 0.0
+
+
+class _AlwaysOpenBreaker:
+    state = CircuitState.OPEN
+
+    def allow_request(self) -> bool:
+        return False
+
+    def record_success(self) -> None:
+        raise AssertionError("record_success should never be called when short-circuited")
+
+    def record_failure(self) -> None:
+        raise AssertionError("record_failure should never be called when short-circuited")
 
 
 def test_miss_path_increments_cache_miss_counter(monkeypatch) -> None:
@@ -36,6 +58,18 @@ def test_miss_path_increments_cache_miss_counter(monkeypatch) -> None:
             )
         assert _counter_value(app.state.metrics.cache_miss) == 1
         assert _counter_value(app.state.metrics.cache_hit) == 0
+
+
+def test_circuit_breaker_open_counter_is_labeled_by_provider(monkeypatch) -> None:
+    app = create_app(_settings(monkeypatch))
+    app.dependency_overrides[get_circuit_breaker] = lambda: _AlwaysOpenBreaker()
+    with TestClient(app) as client:
+        client.post(
+            "/v1/gemini/gemini-3.7-flash:streamGenerateContent",
+            headers={"x-gateway-api-key": "gw-secret"},
+            json={"turns": [{"role": "user", "parts": [{"type": "text", "text": "hi"}]}]},
+        )
+    assert _labeled_counter_value(app.state.metrics.circuit_breaker_open, provider="gemini") == 1
 
 
 def test_metrics_endpoint_serves_domain_counters(monkeypatch) -> None:
