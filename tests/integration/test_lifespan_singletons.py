@@ -62,7 +62,9 @@ def test_singletons_are_built_exactly_once_across_multiple_requests(monkeypatch)
         calls["gemini_provider"] += 1
         real_gemini_provider_init(self, *args, **kwargs)
 
-    monkeypatch.setattr(app_module.GeminiProvider, "__init__", counting_gemini_provider_init)
+    monkeypatch.setattr(
+        gemini_provider_module.GeminiProvider, "__init__", counting_gemini_provider_init
+    )
 
     sse_body = gemini_sse_event(text="hi", finish_reason="STOP", total_tokens=3)
     with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:

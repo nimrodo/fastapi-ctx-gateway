@@ -1,6 +1,6 @@
 # fastapi-ctx-gateway
 
-A context-aware agentic API gateway for LLM APIs (Gemini and OpenAI today). It sits between clients and the upstream provider, handling stream proxying, semantic caching, token-aware rate limiting, and context pruning at the edge — with a target overhead budget of ~15-20ms on a cache-hit path.
+A context-aware agentic API gateway for LLM APIs (Gemini, OpenAI, and Anthropic today). It sits between clients and the upstream provider, handling stream proxying, semantic caching, token-aware rate limiting, and context pruning at the edge — with a target overhead budget of ~15-20ms on a cache-hit path.
 
 ## Documentation
 
@@ -10,7 +10,7 @@ This README covers the essentials; the full docs (built with [MkDocs](mkdocs.yml
 
 **Advanced** — [Custom vectorizer](docs/advanced/custom-vectorizer.md) · [Multi-tenant keys](docs/advanced/multi-tenant-keys.md) · [Deployment](docs/advanced/deployment.md) · [Extending pruning](docs/advanced/extending-pruning.md) · [Adding a provider](docs/advanced/adding-a-provider.md)
 
-**Design decisions (ADRs)** — [0001: Gemini classic API over Interactions API](docs/adr/0001-gemini-classic-api-over-interactions-api.md) · [0002: Redis VSS over Qdrant](docs/adr/0002-redis-vss-over-qdrant.md) · [0003: RedisVL semantic cache adoption](docs/adr/0003-redisvl-semantic-cache-adoption.md) · [0004: Sliding-window counter over exact log](docs/adr/0004-sliding-window-counter-over-exact-log.md) · [0005: Per-worker in-memory circuit breaker](docs/adr/0005-per-worker-in-memory-circuit-breaker.md) · [0006: Neutral schema and provider abstraction](docs/adr/0006-neutral-schema-and-provider-abstraction.md)
+**Design decisions (ADRs)** — [0001: Gemini classic API over Interactions API](docs/adr/0001-gemini-classic-api-over-interactions-api.md) · [0002: Redis VSS over Qdrant](docs/adr/0002-redis-vss-over-qdrant.md) · [0003: RedisVL semantic cache adoption](docs/adr/0003-redisvl-semantic-cache-adoption.md) · [0004: Sliding-window counter over exact log](docs/adr/0004-sliding-window-counter-over-exact-log.md) · [0005: Per-worker in-memory circuit breaker](docs/adr/0005-per-worker-in-memory-circuit-breaker.md) · [0006: Neutral schema and provider abstraction](docs/adr/0006-neutral-schema-and-provider-abstraction.md) · [0007: Anthropic SDK provider](docs/adr/0007-anthropic-sdk-provider.md) · [0008: Providers are opt-in extras](docs/adr/0008-providers-are-opt-in-extras.md)
 
 **Reference** (auto-generated from docstrings) — [Overview](docs/reference/index.md) · [App](docs/reference/app.md) · [Config](docs/reference/config.md) · [Auth](docs/reference/auth.md) · [Cache](docs/reference/cache.md) · [Rate limiting](docs/reference/ratelimit.md) · [Pruning](docs/reference/pruning.md) · [Circuit breaker](docs/reference/circuit-breaker.md) · [Proxy](docs/reference/proxy.md) · [Providers](docs/reference/providers.md) · [Schemas](docs/reference/schemas.md) · [Observability](docs/reference/observability.md)
 
@@ -18,7 +18,7 @@ This README covers the essentials; the full docs (built with [MkDocs](mkdocs.yml
 
 ## Architecture
 
-The gateway speaks its own neutral request/response contract; a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from each upstream API (Gemini and OpenAI today — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md)). Every request is measured against two separate latency budgets:
+The gateway speaks its own neutral request/response contract; a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from each upstream API (Gemini, OpenAI, and Anthropic today — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md)). Each provider is an opt-in dependency extra and none is mandatory ([ADR-0008](docs/adr/0008-providers-are-opt-in-extras.md)); the Anthropic adapter is built on the official `anthropic` SDK ([ADR-0007](docs/adr/0007-anthropic-sdk-provider.md)). Every request is measured against two separate latency budgets:
 
 - **Cache-hit path** (embed + Redis lookup + response synthesis, no provider call): target ≤15-20ms total.
 - **Cache-miss path** (auth + rate-limit + prune, before the provider call): target low single-digit ms, additive to whatever the provider itself takes.
@@ -30,11 +30,13 @@ All shared state (rate limits, semantic cache) lives in Redis — the gateway it
 ## Quickstart
 
 ```bash
-uv sync
+uv sync                             # contributors: dev group includes every provider's deps
 docker compose up -d redis          # Redis Stack (RediSearch/VSS module)
-cp .env.example .env                # then fill in GATEWAY_GEMINI_UPSTREAM_KEY and GATEWAY_TENANT_API_KEYS
+cp .env.example .env                # then fill in GATEWAY_TENANT_API_KEYS + at least one provider key
 uv run fastapi-ctx-gateway
 ```
+
+Installing as a dependency: `pip install fastapi-ctx-gateway[all]` (or a single `[gemini]` / `[openai]` / `[anthropic]`). At least one provider must be configured or the gateway refuses to boot — see [ADR-0008](docs/adr/0008-providers-are-opt-in-extras.md).
 
 The server listens on `:8000` by default. Point a client at `POST /v1/{provider}/{model}:streamGenerateContent` (e.g. `/v1/gemini/gemini-3.7-flash:streamGenerateContent`) with header `x-gateway-api-key: some-gateway-key` and the gateway's own neutral request body — see [ADR-0006](docs/adr/0006-neutral-schema-and-provider-abstraction.md).
 
@@ -59,11 +61,14 @@ All settings are environment variables prefixed `GATEWAY_` (or a `.env` file —
 | Variable | Default | Notes |
 |---|---|---|
 | `GATEWAY_REDIS_URL` | `redis://localhost:6379` | Shared state store |
-| `GATEWAY_GEMINI_UPSTREAM_KEY` | *(required)* | Gemini API key, sent as `x-goog-api-key` |
+| `GATEWAY_GEMINI_UPSTREAM_KEY` | *(unset)* | Gemini API key, sent as `x-goog-api-key`. Unset (or blank) disables the `gemini` provider |
 | `GATEWAY_GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` | |
-| `GATEWAY_OPENAI_API_KEY` | *(unset)* | Optional. Unset (or blank) disables the `openai` provider entirely — never a boot failure |
+| `GATEWAY_OPENAI_API_KEY` | *(unset)* | Unset (or blank) disables the `openai` provider entirely — never a boot failure |
 | `GATEWAY_OPENAI_BASE_URL` | `https://api.openai.com/v1` | |
 | `GATEWAY_OPENAI_INCLUDE_USAGE` | `true` | Set `false` for an OpenAI-compatible server that rejects `stream_options.include_usage` |
+| `GATEWAY_ANTHROPIC_API_KEY` | *(unset)* | Enables the `anthropic` provider (needs the `[anthropic]` extra). Unset (or blank) disables it |
+| `GATEWAY_ANTHROPIC_BASE_URL` | *(unset)* | Overrides the `anthropic` SDK's default base URL |
+| `GATEWAY_ANTHROPIC_DEFAULT_MAX_TOKENS` | `4096` | Fallback for Anthropic's mandatory `max_tokens` |
 | `GATEWAY_TENANT_API_KEYS` | *(required)* | JSON map of gateway-issued key → tenant id |
 | `GATEWAY_EMBEDDING_MODEL_PATH` | *(unset)* | Path to an ONNX embedding model. Unset disables the semantic cache entirely — never a boot failure. |
 | `GATEWAY_CACHE_DISTANCE_THRESHOLD` | `0.10` | Cosine distance cutoff for a cache hit |
@@ -100,7 +105,7 @@ The semantic cache needs an ONNX embedding model to be useful in production. `GA
 
 - `src/fastapi_ctx_gateway/` — the package (see module docstrings for what each file owns)
 - `tests/unit/` — fast, fully mocked
-- `tests/integration/` — real Redis Stack + mocked Gemini (`respx`)
+- `tests/integration/` — real Redis Stack + mocked upstreams (`respx` for Gemini/OpenAI, a stub client for Anthropic — see ADR-0007)
 - `CONTEXT.md` — domain glossary
 - `docs/adr/` — architecture decision records for the major forks in this design
 - `docs/agents/` — configuration consumed by AI coding-agent skills working in this repo (issue tracker, triage labels, domain-doc conventions)

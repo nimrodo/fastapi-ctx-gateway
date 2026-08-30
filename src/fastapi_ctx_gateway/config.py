@@ -35,13 +35,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="GATEWAY_", env_file=".env", extra="ignore")
 
     redis_url: str = "redis://localhost:6379"
-    gemini_upstream_key: SecretStr
+
+    # Every provider is an optional config group now (see ADR-0008): unset
+    # (or empty-string) credentials mean that provider simply isn't
+    # registered, never a boot failure. `create_app` refuses to boot only
+    # if *no* provider ends up configured. Gemini used to be mandatory.
+    gemini_upstream_key: SecretStr | None = None
     gemini_base_url: str = "https://generativelanguage.googleapis.com"
 
-    # Unlike Gemini's key, this is optional: unset (the default) means the
-    # OpenAI provider simply isn't registered (see app.py's provider
-    # registry) rather than a boot failure — a deployment that only ever
-    # calls Gemini shouldn't be forced to configure OpenAI too.
     openai_api_key: SecretStr | None = None
     openai_base_url: str = "https://api.openai.com/v1"
 
@@ -49,6 +50,15 @@ class Settings(BaseSettings):
     # "OpenAI-compatible" servers (vLLM, Ollama, ...) reject the field with
     # a 400. Set to false for those deployments — see ADR-0006.
     openai_include_usage: bool = True
+
+    anthropic_api_key: SecretStr | None = None
+    # None -> let the anthropic SDK use its own default base URL. Set it for
+    # a proxy or an Anthropic-compatible gateway.
+    anthropic_base_url: str | None = None
+    # Anthropic's Messages API *requires* max_tokens; the neutral contract
+    # makes it optional. This is the fallback used when a request omits
+    # generation_config.max_output_tokens.
+    anthropic_default_max_tokens: int = 4096
 
     cache_distance_threshold: float = 0.10
     cache_ttl_s: int = 3600

@@ -2,11 +2,13 @@
 
 ## Install
 
+Pick the provider(s) you need — each is an opt-in extra:
+
 ```bash
-uv add fastapi-ctx-gateway
+uv add "fastapi-ctx-gateway[gemini]"     # or [openai], [anthropic], or [all]
 ```
 
-Or, working from a clone of the repo:
+Or, working from a clone of the repo (the `dev` group already includes every provider's deps):
 
 ```bash
 uv sync
@@ -22,7 +24,7 @@ docker compose up -d redis
 
 ## Configure and run
 
-At minimum, the gateway needs your Gemini API key and at least one gateway-issued key for clients to authenticate with:
+At minimum, the gateway needs at least one provider key (Gemini shown here) and at least one gateway-issued key for clients to authenticate with:
 
 ```bash
 GATEWAY_GEMINI_UPSTREAM_KEY=<your-gemini-api-key> \

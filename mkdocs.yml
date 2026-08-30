@@ -1,5 +1,5 @@
 site_name: fastapi-ctx-gateway
-site_description: A context-aware agentic API gateway for Gemini — stream proxying, semantic caching, token-aware rate limiting, and context pruning at the edge.
+site_description: A context-aware agentic API gateway for Gemini, OpenAI, and Anthropic — stream proxying, semantic caching, token-aware rate limiting, and context pruning at the edge.
 repo_url: https://github.com/nimrodo/fastapi-ctx-gateway
 repo_name: nimrodo/fastapi-ctx-gateway
 
@@ -59,6 +59,8 @@ nav:
       - "0004: Sliding-window counter over exact log": adr/0004-sliding-window-counter-over-exact-log.md
       - "0005: Per-worker in-memory circuit breaker": adr/0005-per-worker-in-memory-circuit-breaker.md
       - "0006: Neutral schema and provider abstraction": adr/0006-neutral-schema-and-provider-abstraction.md
+      - "0007: Anthropic SDK provider": adr/0007-anthropic-sdk-provider.md
+      - "0008: Providers are opt-in extras": adr/0008-providers-are-opt-in-extras.md
   - Reference:
       - reference/index.md
       - App: reference/app.md

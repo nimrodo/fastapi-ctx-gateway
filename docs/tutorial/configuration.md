@@ -7,13 +7,14 @@ Copy the repo's [`.env.example`](https://github.com/nimrodo/fastapi-ctx-gateway/
 ## Required
 
 ```bash
-GATEWAY_GEMINI_UPSTREAM_KEY=<your-gemini-api-key>
 GATEWAY_TENANT_API_KEYS='{"<gateway-issued-key>": "<tenant-id>"}'
+# ...plus at least one provider key (see below)
+GATEWAY_GEMINI_UPSTREAM_KEY=<your-gemini-api-key>
 ```
 
 `GATEWAY_TENANT_API_KEYS` has no default and the app refuses to boot without it — an empty mapping would mean no client can ever authenticate, so an unconfigured gateway fails fast at startup instead of shipping a service that 401s every request. See [Multi-tenant keys](../advanced/multi-tenant-keys.md). Everything else has a working default.
 
-`GATEWAY_GEMINI_UPSTREAM_KEY` is required because Gemini is the gateway's original, always-on provider. Every other provider (currently just OpenAI, via `GATEWAY_OPENAI_API_KEY`) is configured as an optional group instead: leave its key unset and the gateway boots fine without it, it just doesn't register that provider — `POST /v1/openai/...` 404s until `GATEWAY_OPENAI_API_KEY` is set. See [ADR-0006](../adr/0006-neutral-schema-and-provider-abstraction.md).
+**At least one provider must be configured.** No provider is mandatory (see [ADR-0008](../adr/0008-providers-are-opt-in-extras.md)): each is an optional config group *and* an optional dependency extra. Set a provider's key and install its extra (`fastapi-ctx-gateway[gemini]` / `[openai]` / `[anthropic]`, or `[all]`) and it registers; leave the key unset and `POST /v1/<name>/...` 404s. `create_app()` refuses to boot if *zero* providers end up configured. A key set without its extra installed fails at boot with an actionable message.
 
 ## Nested settings
 
@@ -28,11 +29,14 @@ GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-3.7-flash": 32000, "gemini-2.5-pro":
 | Variable | Default | What it controls |
 |---|---|---|
 | `GATEWAY_REDIS_URL` | `redis://localhost:6379` | Shared state store (rate limits, semantic cache) |
-| `GATEWAY_GEMINI_UPSTREAM_KEY` | *(required)* | Sent to Gemini as `x-goog-api-key` |
+| `GATEWAY_GEMINI_UPSTREAM_KEY` | *(unset)* | Sent to Gemini as `x-goog-api-key`. Unset (or blank) means the `gemini` provider isn't registered — never a boot failure |
 | `GATEWAY_GEMINI_BASE_URL` | `https://generativelanguage.googleapis.com` | |
-| `GATEWAY_OPENAI_API_KEY` | *(unset)* | Sent to OpenAI as `Authorization: Bearer`. Unlike Gemini's key, unset (or blank) simply means the `openai` provider isn't registered — never a boot failure |
+| `GATEWAY_OPENAI_API_KEY` | *(unset)* | Sent to OpenAI as `Authorization: Bearer`. Unset (or blank) means the `openai` provider isn't registered |
 | `GATEWAY_OPENAI_BASE_URL` | `https://api.openai.com/v1` | |
 | `GATEWAY_OPENAI_INCLUDE_USAGE` | `true` | Whether requests ask for `stream_options.include_usage`. Disable for an OpenAI-compatible server that rejects the field — see ADR-0006 |
+| `GATEWAY_ANTHROPIC_API_KEY` | *(unset)* | Enables the `anthropic` provider (needs the `[anthropic]` extra). Unset (or blank) means it isn't registered |
+| `GATEWAY_ANTHROPIC_BASE_URL` | *(unset)* | Overrides the `anthropic` SDK's default base URL (proxy / compatible gateway) |
+| `GATEWAY_ANTHROPIC_DEFAULT_MAX_TOKENS` | `4096` | Fallback for Anthropic's mandatory `max_tokens` when a request omits `generation_config.max_output_tokens` |
 | `GATEWAY_TENANT_API_KEYS` | *(required)* | JSON map of gateway-issued key → tenant id |
 | `GATEWAY_EMBEDDING_MODEL_PATH` | *(unset)* | ONNX embedding model path. Unset disables the semantic cache — never a boot failure |
 | `GATEWAY_CACHE_DISTANCE_THRESHOLD` | `0.10` | Cosine distance cutoff for a cache hit |
