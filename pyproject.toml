@@ -6,6 +6,8 @@ readme = "README.md"
 authors = [
     { name = "Nimrod Oren", email = "nimrodo@gmail.com" }
 ]
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.141.1",
