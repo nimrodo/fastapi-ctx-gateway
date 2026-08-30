@@ -18,8 +18,7 @@ from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import register_exception_handlers
 from fastapi_ctx_gateway.observability.metrics import Metrics, build_metrics
 from fastapi_ctx_gateway.providers.base import Provider
-from fastapi_ctx_gateway.providers.gemini import GeminiProvider
-from fastapi_ctx_gateway.providers.openai import OpenAIProvider
+from fastapi_ctx_gateway.providers.registry import SPECS
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
 from fastapi_ctx_gateway.ratelimit import RateLimiter
 from fastapi_ctx_gateway.routers.generate import router as generate_router
@@ -72,46 +71,23 @@ def _build_semantic_cache(settings: Settings, metrics: Metrics) -> SemanticCache
         return None
 
 
-def _openai_is_configured(settings: Settings) -> bool:
-    # An empty string is almost certainly a misconfiguration (a blank .env
-    # line, a secret that resolved empty) rather than an intentional key —
-    # treat it the same as unset instead of registering a provider that
-    # can never authenticate.
-    return bool(settings.openai_api_key and settings.openai_api_key.get_secret_value())
-
-
 def _registered_provider_names(settings: Settings) -> list[str]:
     """The provider names this Settings will register.
 
-    Known before any async resource (http_client, etc.) exists, so circuit
-    breakers can be built for exactly these providers up front, alongside
-    the providers themselves in lifespan.
+    Driven entirely by `providers/registry.py` — the single source of truth
+    for which providers exist. Known before any async resource (http_client,
+    etc.) exists and without importing any provider adapter module, so circuit
+    breakers can be built for exactly these providers up front.
     """
-    names = [GeminiProvider.name]
-    if _openai_is_configured(settings):
-        names.append(OpenAIProvider.name)
-    return names
+    return [spec.name for spec in SPECS if spec.configured(settings)]
 
 
 def _build_providers(settings: Settings, http_client: httpx.AsyncClient) -> dict[str, Provider]:
-    gemini = GeminiProvider(
-        http_client=http_client,
-        api_key=settings.gemini_upstream_key.get_secret_value(),
-        base_url=settings.gemini_base_url,
-    )
-    providers: dict[str, Provider] = {gemini.name: gemini}
-    # OpenAI is optional (unlike Gemini): unset/empty key means simply not
-    # registered, not a boot failure — see config.py's openai_api_key.
-    if _openai_is_configured(settings):
-        assert settings.openai_api_key is not None  # narrowed by _openai_is_configured
-        openai_provider = OpenAIProvider(
-            http_client=http_client,
-            api_key=settings.openai_api_key.get_secret_value(),
-            base_url=settings.openai_base_url,
-            include_usage=settings.openai_include_usage,
-        )
-        providers[openai_provider.name] = openai_provider
-    return providers
+    # Each spec.build() lazily imports its adapter and turns a missing
+    # dependency into an actionable error (install fastapi-ctx-gateway[<extra>]).
+    return {
+        spec.name: spec.build(settings, http_client) for spec in SPECS if spec.configured(settings)
+    }
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -122,6 +98,16 @@ def create_app(settings: Settings) -> FastAPI:
     its own via this factory, so independently-configured instances never
     share mutable state.
     """
+    # No provider is mandatory (see ADR-0008), but a gateway with zero
+    # providers can serve no traffic — fail at boot rather than 404 every
+    # request.
+    provider_names = _registered_provider_names(settings)
+    if not provider_names:
+        raise RuntimeError(
+            "no LLM provider configured — set a provider key and install its extra: "
+            "fastapi-ctx-gateway[gemini] / [openai] / [anthropic] / [all]"
+        )
+
     # Synchronous, in-memory singletons — no async resources involved, so
     # built up front rather than in lifespan. One breaker per registered
     # provider (not one shared globally): an outage on one upstream must
@@ -131,7 +117,7 @@ def create_app(settings: Settings) -> FastAPI:
             failure_threshold=settings.circuit_breaker_failure_threshold,
             reset_timeout_s=settings.circuit_breaker_reset_timeout_s,
         )
-        for name in _registered_provider_names(settings)
+        for name in provider_names
     }
     metrics = build_metrics()
 
@@ -156,6 +142,13 @@ def create_app(settings: Settings) -> FastAPI:
             try:
                 yield
             finally:
+                # Providers that own their own resources (the anthropic SDK's
+                # httpx2 pool) expose aclose(); the shared httpx.AsyncClient is
+                # closed by its own `async with` above.
+                for provider in app.state.providers.values():
+                    aclose = getattr(provider, "aclose", None)
+                    if aclose is not None:
+                        await aclose()
                 await redis_client.aclose()
 
     app = FastAPI(title="fastapi-ctx-gateway", lifespan=lifespan)

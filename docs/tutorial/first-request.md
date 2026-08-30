@@ -1,6 +1,6 @@
 # Your first request
 
-The gateway speaks its own **neutral** request/response contract, not a given provider's native wire format — a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from whichever upstream API you're calling. The request body and streamed response look identical no matter which provider handles the call — only the `{provider}` path segment changes. Two providers ship today: `gemini` (always on) and `openai` (registered only once `GATEWAY_OPENAI_API_KEY` is set — see [Configuration](configuration.md)). See [ADR-0006](../adr/0006-neutral-schema-and-provider-abstraction.md) for why.
+The gateway speaks its own **neutral** request/response contract, not a given provider's native wire format — a pluggable [`Provider`][fastapi_ctx_gateway.providers.base.Provider] translates to/from whichever upstream API you're calling. The request body and streamed response look identical no matter which provider handles the call — only the `{provider}` path segment changes. Three providers ship today: `gemini`, `openai`, and `anthropic`. Each registers only once its key is set and its extra is installed (see [Configuration](configuration.md)); none is mandatory. See [ADR-0006](../adr/0006-neutral-schema-and-provider-abstraction.md) and [ADR-0008](../adr/0008-providers-are-opt-in-extras.md) for why.
 
 ## Make a request
 
