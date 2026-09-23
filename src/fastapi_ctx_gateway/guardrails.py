@@ -51,22 +51,23 @@ _FAKE_DELIMITER_PATTERNS = [
     r"end of system prompt",
 ]
 
-_PATTERN_GROUPS: dict[str, list[str]] = {
-    "instruction_override": _INSTRUCTION_OVERRIDE_PATTERNS,
-    "roleplay_jailbreak": _ROLEPLAY_JAILBREAK_PATTERNS,
-    "fake_delimiter": _FAKE_DELIMITER_PATTERNS,
-}
-
 
 class HeuristicInjectionDetector:
-    """Regex-based detector over three known prompt-injection categories."""
+    """Regex-based detector over three known prompt-injection categories.
+
+    detect() only needs a yes/no match, so the three category lists above
+    are flattened into one compiled list rather than kept as a dict — there's
+    no consumer for *which* category matched (yet; the metric/log are
+    request-level, not per-category).
+    """
 
     def __init__(self) -> None:
-        """Compile every category's patterns once, case-insensitively."""
+        """Compile every pattern once, case-insensitively."""
+        raw_patterns = (
+            _INSTRUCTION_OVERRIDE_PATTERNS + _ROLEPLAY_JAILBREAK_PATTERNS + _FAKE_DELIMITER_PATTERNS
+        )
         self._patterns: list[re.Pattern[str]] = [
-            re.compile(pattern, re.IGNORECASE)
-            for patterns in _PATTERN_GROUPS.values()
-            for pattern in patterns
+            re.compile(pattern, re.IGNORECASE) for pattern in raw_patterns
         ]
 
     def detect(self, turns: list[Turn], system: list[Part] | None) -> bool:

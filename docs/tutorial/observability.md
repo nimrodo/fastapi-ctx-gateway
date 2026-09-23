@@ -18,6 +18,7 @@ Domain-specific counters (hand-instrumented — see below for why):
 | `rate_limit_rejected_total` | A request was rejected by the rate limiter |
 | `circuit_breaker_open_total{provider}` | A request was short-circuited by that provider's open breaker — labeled since each registered provider has its own breaker |
 | `vector_store_fail_open_total` | A cache lookup/store failed and fell open (a real backend failure, not a genuine miss) |
+| `prompt_injection_detections_total{mode}` | A request's content matched a known prompt-injection pattern (`flag`/`block` modes only — never invoked when `off`) |
 
 Generic HTTP metrics (request counts, status codes, latency histograms) come from [`prometheus-fastapi-instrumentator`](https://github.com/trallnag/prometheus-fastapi-instrumentator), served from the same endpoint. It's used for that baseline only — it doesn't reliably measure SSE stream duration (a known gap: ASGI middleware timing typically stops at "headers sent," not stream completion), so the latency-critical spans below are hand-instrumented instead.
 

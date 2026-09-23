@@ -49,6 +49,7 @@ GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-3.7-flash": 32000, "gemini-2.5-pro":
 | `GATEWAY_RATE_LIMIT_WINDOW_S` | `60` | Rate-limit window size |
 | `GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5` | Consecutive failures before the breaker opens |
 | `GATEWAY_CIRCUIT_BREAKER_RESET_TIMEOUT_S` | `30.0` | Time before a half-open trial request |
+| `GATEWAY_PROMPT_INJECTION_MODE` | `off` | `off`/`flag`/`block` — heuristic request-side injection detection. `flag` and `block` both currently only log + count a match; `block` enforcement is a follow-up |
 | `GATEWAY_HOST` | `0.0.0.0` | Server bind address (CLI only) |
 | `GATEWAY_PORT` | `8000` | Server bind port (CLI only) |
 | `GATEWAY_WORKERS` | `1` | Worker process count (CLI only) |
