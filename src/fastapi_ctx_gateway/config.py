@@ -1,6 +1,7 @@
 """Runtime configuration for the gateway."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -86,6 +87,13 @@ class Settings(BaseSettings):
 
     circuit_breaker_failure_threshold: int = 5
     circuit_breaker_reset_timeout_s: float = 30.0
+
+    # off: detector never runs (no measurable overhead). flag: detected,
+    # logged, counted, request proceeds unmodified. block: same as flag for
+    # now — enforcement is a follow-up (see ADR-tracked issue #19). Accepts
+    # the full enum from the start so enabling enforcement later needs no
+    # config-schema change.
+    prompt_injection_mode: Literal["off", "flag", "block"] = "off"
 
     host: str = "0.0.0.0"  # noqa: S104 - intentional bind-all default for a gateway service
     port: int = 8000

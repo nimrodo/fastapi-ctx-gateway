@@ -18,6 +18,23 @@ def test_settings_loads_with_defaults(monkeypatch) -> None:
     assert settings.openai_api_key is None
     assert settings.openai_base_url == "https://api.openai.com/v1"
     assert settings.openai_include_usage is True
+    assert settings.prompt_injection_mode == "off"
+
+
+def test_settings_prompt_injection_mode_can_be_set(monkeypatch) -> None:
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODE", "flag")
+    settings = Settings()
+    assert settings.prompt_injection_mode == "flag"
+
+
+def test_settings_prompt_injection_mode_rejects_unknown_value(monkeypatch) -> None:
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODE", "bogus")
+    with pytest.raises(ValidationError):
+        Settings()
 
 
 def test_settings_openai_key_is_optional_unlike_gemini(monkeypatch) -> None:

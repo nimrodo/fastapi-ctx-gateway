@@ -16,6 +16,7 @@ from fastapi_ctx_gateway.cache.vectorizer import simple_char_code_tokenize
 from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import register_exception_handlers
+from fastapi_ctx_gateway.guardrails import HeuristicInjectionDetector
 from fastapi_ctx_gateway.observability.metrics import Metrics, build_metrics
 from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.providers.registry import SPECS
@@ -155,6 +156,9 @@ def create_app(settings: Settings) -> FastAPI:
     app.state.settings = settings
     app.state.circuit_breakers = circuit_breakers
     app.state.metrics = metrics
+    # Stateless and synchronous (pure regex over already-parsed request
+    # content) — built once up front like the breakers, not per request.
+    app.state.injection_detector = HeuristicInjectionDetector()
 
     app.include_router(generate_router)
     register_exception_handlers(app)

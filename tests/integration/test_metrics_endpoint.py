@@ -87,3 +87,4 @@ def test_metrics_endpoint_serves_domain_counters(monkeypatch) -> None:
     assert "rate_limit_rejected_total" in body
     assert "circuit_breaker_open_total" in body
     assert "vector_store_fail_open_total" in body
+    assert "prompt_injection_detections_total" in body

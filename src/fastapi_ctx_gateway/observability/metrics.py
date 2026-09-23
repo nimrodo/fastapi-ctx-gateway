@@ -23,6 +23,7 @@ class Metrics:
     rate_limit_rejected: Counter
     circuit_breaker_open: Counter
     vector_store_fail_open: Counter
+    prompt_injection_detections: Counter
 
 
 def build_metrics(registry: CollectorRegistry | None = None) -> Metrics:
@@ -55,6 +56,12 @@ def build_metrics(registry: CollectorRegistry | None = None) -> Metrics:
         vector_store_fail_open=Counter(
             "vector_store_fail_open_total",
             "Cache lookups/stores that failed and fell open (treated as a miss)",
+            registry=registry,
+        ),
+        prompt_injection_detections=Counter(
+            "prompt_injection_detections_total",
+            "Requests whose content matched a known prompt-injection pattern",
+            ["mode"],
             registry=registry,
         ),
     )

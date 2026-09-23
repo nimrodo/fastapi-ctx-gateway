@@ -1,10 +1,11 @@
 """The streamGenerateContent endpoint.
 
-Thin orchestrator: sequences auth, rate-limit, pruning, cache, and the
-provider call. Business logic lives in the service modules it calls into,
-not here.
+Thin orchestrator: sequences auth, guardrails, rate-limit, pruning, cache,
+and the provider call. Business logic lives in the service modules it calls
+into, not here.
 """
 
+import logging
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends
@@ -13,14 +14,18 @@ from fastapi.responses import StreamingResponse
 from fastapi_ctx_gateway.auth import Tenant, verify_api_key
 from fastapi_ctx_gateway.cache import CacheHit, SemanticCache
 from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker, CircuitOpenError
+from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.deps import (
     get_circuit_breaker,
+    get_injection_detector,
     get_metrics,
     get_provider,
     get_pruner,
     get_rate_limiter,
     get_semantic_cache,
+    get_settings,
 )
+from fastapi_ctx_gateway.guardrails import InjectionDetector
 from fastapi_ctx_gateway.observability.metrics import Metrics
 from fastapi_ctx_gateway.observability.tracing import hit_path_span, pre_proxy_span
 from fastapi_ctx_gateway.providers.base import Provider
@@ -37,6 +42,8 @@ from fastapi_ctx_gateway.schemas.neutral import (
     Turn,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 _token_estimator = TokenEstimator()
 
@@ -52,20 +59,39 @@ async def stream_generate_content(
     semantic_cache: SemanticCache | None = Depends(get_semantic_cache),
     circuit_breaker: CircuitBreaker = Depends(get_circuit_breaker),
     metrics: Metrics = Depends(get_metrics),
+    settings: Settings = Depends(get_settings),
+    injection_detector: InjectionDetector = Depends(get_injection_detector),
 ) -> StreamingResponse:
     """Proxy a streaming generate request through to the named provider.
 
-    Sequenced deliberately: auth -> rate-limit check -> breaker precheck
-    -> prune -> cache-eligibility -> cache lookup -> (hit: return) /
-    (miss: proxy). A rejected request never reaches pruning or cache
-    work, let alone the provider — and the breaker check (in-memory, O(1))
-    happens before any of that, since it's the cheapest possible reject.
-    Admission control is checked against the client's original, unpruned
-    token estimate — pruning happens only after a request has already
-    been admitted, and the cache is looked up against the *pruned*
-    turns (better hit rate, cheaper to embed).
+    Sequenced deliberately: auth -> injection detection -> rate-limit check
+    -> breaker precheck -> prune -> cache-eligibility -> cache lookup ->
+    (hit: return) / (miss: proxy). A rejected request never reaches pruning
+    or cache work, let alone the provider — and the breaker check
+    (in-memory, O(1)) happens before any of that, since it's the cheapest
+    possible reject. Admission control is checked against the client's
+    original, unpruned token estimate — pruning happens only after a
+    request has already been admitted, and the cache is looked up against
+    the *pruned* turns (better hit rate, cheaper to embed).
+
+    Injection detection runs against the raw, pre-pruned turns/system and
+    is skipped entirely (not invoked-and-ignored) when mode is "off" — no
+    measurable overhead for deployments that don't opt in. In both "flag"
+    and "block" modes a match is currently observed only (logged + counted);
+    "block" mode enforcement is a follow-up.
     """
     with pre_proxy_span():
+        if settings.prompt_injection_mode != "off" and injection_detector.detect(
+            turns=request.turns, system=request.system
+        ):
+            metrics.prompt_injection_detections.labels(mode=settings.prompt_injection_mode).inc()
+            logger.warning(
+                "prompt injection pattern detected (mode=%s, tenant=%s, model=%s)",
+                settings.prompt_injection_mode,
+                tenant.id,
+                model,
+            )
+
         rate_limit_key = f"{tenant.api_key}:{model}"
         estimated_tokens = _token_estimator.estimate(turns=request.turns, system=request.system)
         decision = await rate_limiter.check(rate_limit_key, estimated_tokens)

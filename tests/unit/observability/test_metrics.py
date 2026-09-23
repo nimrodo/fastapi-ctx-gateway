@@ -29,6 +29,15 @@ def test_circuit_breaker_open_is_labeled_by_provider_and_starts_unset() -> None:
     assert sample.value == 1
 
 
+def test_prompt_injection_detections_is_labeled_by_mode_and_starts_unset() -> None:
+    metrics = build_metrics(CollectorRegistry())
+    assert metrics.prompt_injection_detections.collect()[0].samples == []
+    metrics.prompt_injection_detections.labels(mode="flag").inc()
+    sample = metrics.prompt_injection_detections.collect()[0].samples[0]
+    assert sample.labels == {"mode": "flag"}
+    assert sample.value == 1
+
+
 def test_counters_increment_independently() -> None:
     metrics = build_metrics(CollectorRegistry())
     metrics.cache_hit.inc()

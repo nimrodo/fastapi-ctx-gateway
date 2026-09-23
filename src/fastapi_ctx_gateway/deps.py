@@ -7,7 +7,9 @@ from fastapi import Request
 
 from fastapi_ctx_gateway.cache import SemanticCache
 from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
+from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import ProviderNotFoundError
+from fastapi_ctx_gateway.guardrails import InjectionDetector
 from fastapi_ctx_gateway.observability.metrics import Metrics
 from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
@@ -58,3 +60,15 @@ def get_metrics(request: Request) -> Metrics:
     """Return the shared Prometheus counters built once during app startup."""
     metrics: Metrics = request.app.state.metrics
     return metrics
+
+
+def get_settings(request: Request) -> Settings:
+    """Return the shared Settings built once during app startup."""
+    settings: Settings = request.app.state.settings
+    return settings
+
+
+def get_injection_detector(request: Request) -> InjectionDetector:
+    """Return the shared InjectionDetector built once during app startup."""
+    detector: InjectionDetector = request.app.state.injection_detector
+    return detector
