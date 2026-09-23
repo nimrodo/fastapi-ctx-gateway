@@ -115,6 +115,16 @@ class Settings(BaseSettings):
     tpm_limit: int = 100_000
     rate_limit_window_s: int = 60
 
+    # Failed-auth backstop (auth.py::verify_api_key), independent of the
+    # per-tenant-model limiter above: keyed per-source-IP, gates every
+    # request (not just ones that turn out to be failures) before
+    # resolve_tenant runs — see docs/security.md. Generous by default
+    # (20/window) so a legitimate tenant mistyping their own key a few
+    # times, or several tenants behind one NAT'd IP, isn't disproportionately
+    # locked out; tighten per-deployment if brute-forcing is a real concern.
+    auth_failure_rpm_limit: int = 20
+    auth_failure_window_s: int = 60
+
     circuit_breaker_failure_threshold: int = 5
     circuit_breaker_reset_timeout_s: float = 30.0
 

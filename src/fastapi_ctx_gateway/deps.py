@@ -31,6 +31,16 @@ def get_rate_limiter(request: Request) -> RateLimiter:
     return limiter
 
 
+def get_auth_rate_limiter(request: Request) -> RateLimiter:
+    """Return the shared failed-auth RateLimiter built once during app startup.
+
+    A separate instance/namespace from `get_rate_limiter`'s — see
+    auth.py::verify_api_key and docs/security.md.
+    """
+    limiter: RateLimiter = request.app.state.auth_rate_limiter
+    return limiter
+
+
 def get_pruner(request: Request) -> TokenBudgetPruner:
     """Return the shared TokenBudgetPruner built once during app startup."""
     pruner: TokenBudgetPruner = request.app.state.pruner

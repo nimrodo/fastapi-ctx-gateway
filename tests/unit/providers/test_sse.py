@@ -31,3 +31,26 @@ def test_falls_back_to_raw_text_when_error_message_is_not_a_string() -> None:
     body = json.dumps({"error": {"message": {"nested": "object"}}}).encode()
     result = parse_error_message("Gemini", 400, body)
     assert result == 'Gemini returned 400: {"error": {"message": {"nested": "object"}}}'
+
+
+def test_redacts_a_passed_in_secret_from_the_relayed_message() -> None:
+    body = json.dumps(
+        {"error": {"message": "Incorrect API key provided: sk-mysecretgatewaykey123."}}
+    ).encode()
+    result = parse_error_message("OpenAI", 401, body, secrets=["sk-mysecretgatewaykey123"])
+    assert "sk-mysecretgatewaykey123" not in result
+    assert result == "OpenAI returned 401: Incorrect API key provided: [REDACTED]."
+
+
+def test_redacts_key_shaped_fragments_even_when_not_passed_as_a_secret() -> None:
+    body = json.dumps({"error": {"message": "bad key sk-abcdefghijklmnop"}}).encode()
+    result = parse_error_message("OpenAI", 401, body)
+    assert "sk-abcdefghijklmnop" not in result
+    assert "[REDACTED]" in result
+
+
+def test_regex_backstop_also_catches_anthropic_and_gemini_key_shapes() -> None:
+    anthropic_body = json.dumps({"error": {"message": "bad key sk-ant-abcdefghijklmnop"}}).encode()
+    gemini_body = json.dumps({"error": {"message": "bad key AIzaSyAbcdefghijklmnop"}}).encode()
+    assert "sk-ant-" not in parse_error_message("Anthropic", 401, anthropic_body)
+    assert "AIza" not in parse_error_message("Gemini", 400, gemini_body)

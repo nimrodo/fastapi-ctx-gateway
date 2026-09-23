@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 import anthropic
 
 from fastapi_ctx_gateway.providers.base import Provider
-from fastapi_ctx_gateway.providers.sse import neutral_error_event
+from fastapi_ctx_gateway.providers.sse import neutral_error_event, redact_secrets
 from fastapi_ctx_gateway.schemas.neutral import (
     BinaryPart,
     Delta,
@@ -52,16 +52,21 @@ class AnthropicProvider(Provider):
 
     name = "anthropic"
 
-    def __init__(self, client: "AsyncAnthropic", default_max_tokens: int) -> None:
+    def __init__(
+        self, client: "AsyncAnthropic", default_max_tokens: int, api_key: str = ""
+    ) -> None:
         """Wrap an injected SDK client.
 
         Tests pass a client built over a stubbed transport here; production
         goes through `from_settings`. `default_max_tokens` is the fallback for
         Anthropic's mandatory `max_tokens` when a neutral request omits
-        `generation_config.max_output_tokens`.
+        `generation_config.max_output_tokens`. `api_key` (default "" for
+        tests that don't care) is redacted from any relayed error message —
+        see `_error_message`.
         """
         self._client = client
         self._default_max_tokens = default_max_tokens
+        self._api_key = api_key
 
     @classmethod
     def from_settings(
@@ -85,7 +90,7 @@ class AnthropicProvider(Provider):
             max_retries=max_retries,
             timeout=timeout,
         )
-        return cls(client=client, default_max_tokens=default_max_tokens)
+        return cls(client=client, default_max_tokens=default_max_tokens, api_key=api_key)
 
     async def aclose(self) -> None:
         """Close the SDK client's connection pool. Called by the app's lifespan."""
@@ -97,7 +102,7 @@ class AnthropicProvider(Provider):
         try:
             events = await self._client.messages.create(model=model, stream=True, **kwargs)
         except anthropic.APIStatusError as exc:
-            yield neutral_error_event(_error_message(exc), exc.status_code)
+            yield neutral_error_event(_error_message(exc, self._api_key), exc.status_code)
             return
         except (anthropic.APIConnectionError, anthropic.APIError) as exc:
             yield neutral_error_event(str(exc), None)
@@ -114,13 +119,23 @@ class AnthropicProvider(Provider):
             await events.close()
 
 
-def _error_message(exc: anthropic.APIStatusError) -> str:
+def _error_message(exc: anthropic.APIStatusError, api_key: str) -> str:
+    """Build the relayed error message, redacted like every other provider's.
+
+    Anthropic's documented error bodies carry no content or key fragments
+    today (see docs/security.md), but this participates in the same
+    redaction interface as Gemini/OpenAI anyway so the key-shape regex
+    backstop still applies here, and so that fact staying true isn't a
+    structural guarantee this code silently depends on.
+    """
     body = exc.body
     if isinstance(body, dict):
         err = body.get("error")
         if isinstance(err, dict) and isinstance(err.get("message"), str):
-            return f"Anthropic returned {exc.status_code}: {err['message']}"
-    return f"Anthropic returned {exc.status_code}: {exc.message}"
+            message = f"Anthropic returned {exc.status_code}: {err['message']}"
+            return redact_secrets(message, secrets=[api_key])
+    message = f"Anthropic returned {exc.status_code}: {exc.message}"
+    return redact_secrets(message, secrets=[api_key])
 
 
 # --- request translation: neutral -> anthropic SDK kwargs ---

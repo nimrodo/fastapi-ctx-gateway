@@ -195,9 +195,12 @@ def _request() -> NeutralGenerateRequest:
     return NeutralGenerateRequest(turns=[Turn(role="user", parts=[TextPart(text="hi")])])
 
 
-def _provider(result) -> tuple[AnthropicProvider, _FakeClient]:
+def _provider(result, api_key: str = "") -> tuple[AnthropicProvider, _FakeClient]:
     client = _FakeClient(result)
-    return AnthropicProvider(client=client, default_max_tokens=4096), client  # type: ignore[arg-type]
+    return (
+        AnthropicProvider(client=client, default_max_tokens=4096, api_key=api_key),  # type: ignore[arg-type]
+        client,
+    )
 
 
 async def test_stream_translates_and_closes_the_sdk_stream() -> None:
@@ -230,6 +233,20 @@ async def test_stream_yields_neutral_error_event_on_api_status_error() -> None:
     payload = _payload(chunks[0])
     assert payload["error"]["provider_status"] == 404
     assert "model not found" in payload["error"]["message"]
+
+
+async def test_stream_redacts_the_configured_api_key_from_a_relayed_error() -> None:
+    exc = anthropic.APIStatusError(
+        "bad key",
+        response=httpx2.Response(401, request=httpx2.Request("POST", "https://api.anthropic.com")),
+        body={"error": {"message": "invalid x-api-key: sk-ant-mysecretgatewaykey123"}},
+    )
+    provider, _ = _provider(exc, api_key="sk-ant-mysecretgatewaykey123")
+    chunks = [c async for c in provider.stream("claude-opus-5", _request())]
+
+    payload = _payload(chunks[0])
+    assert "sk-ant-mysecretgatewaykey123" not in payload["error"]["message"]
+    assert "[REDACTED]" in payload["error"]["message"]
 
 
 async def test_stream_yields_neutral_error_event_on_connection_error() -> None:
