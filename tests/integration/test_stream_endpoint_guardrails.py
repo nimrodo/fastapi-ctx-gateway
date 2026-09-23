@@ -13,6 +13,7 @@ from support.neutral_sse import gemini_sse_event
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.deps import get_injection_detector
+from fastapi_ctx_gateway.guardrails import LocalClassifierInjectionDetector
 from fastapi_ctx_gateway.schemas.neutral import Part, Turn
 
 pytestmark = pytest.mark.integration
@@ -149,3 +150,36 @@ def test_fail_open_end_to_end_with_real_local_classifier_backend(monkeypatch) ->
     assert route.call_count == 1
     fail_open_samples = app.state.metrics.prompt_injection_fail_open.collect()[0].samples
     assert fail_open_samples[0].value >= 1
+
+
+class _RaisingSession:
+    """A fake ONNX session whose run() always raises, simulating a genuine
+    backend error (as opposed to the timeout case above)."""
+
+    def get_inputs(self):
+        raise RuntimeError("simulated ONNX runtime failure")
+
+
+def test_backend_error_fails_open_and_still_reaches_provider(monkeypatch) -> None:
+    """The real LocalClassifierInjectionDetector's fail-open contract holds
+    for a genuine inference error, not just a timeout, when exercised
+    through the full endpoint.
+    """
+    sse_body = gemini_sse_event(text="hi", finish_reason="STOP", total_tokens=3)
+    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:
+        route = mock.post("/v1beta/models/gemini-3.7-flash:streamGenerateContent").mock(
+            return_value=httpx.Response(
+                200, content=sse_body, headers={"content-type": "text/event-stream"}
+            )
+        )
+
+        app = create_app(_settings(monkeypatch, "flag"))
+        broken_detector = LocalClassifierInjectionDetector(
+            session=_RaisingSession(), tokenize=lambda text: [0], threshold=0.5, timeout_s=1.0
+        )
+        app.dependency_overrides[get_injection_detector] = lambda: broken_detector
+        with TestClient(app) as client:
+            response = _post(client)
+
+    assert response.status_code == 200
+    assert route.call_count == 1

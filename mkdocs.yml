@@ -74,6 +74,7 @@ nav:
       - Circuit breaker: reference/circuit-breaker.md
       - Proxy: reference/proxy.md
       - Providers: reference/providers.md
+      - Guardrails: reference/guardrails.md
       - Schemas: reference/schemas.md
       - Observability: reference/observability.md
 
