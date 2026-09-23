@@ -22,9 +22,22 @@ import numpy as np
 
 from fastapi_ctx_gateway.schemas.neutral import Part, TextPart, Turn
 
-__all__ = ["InjectionDetector", "LocalClassifierInjectionDetector", "placeholder_tokenize"]
+__all__ = [
+    "InjectionDetector",
+    "LocalClassifierInjectionDetector",
+    "PromptInjectionDetectedError",
+    "placeholder_tokenize",
+]
 
 logger = logging.getLogger(__name__)
+
+
+class PromptInjectionDetectedError(Exception):
+    """Raised when mode=block and the detector matches.
+
+    Bare marker, like `CircuitOpenError` — `detect()` returns only a bool,
+    so there's no match detail to carry (or leak) even if we wanted to.
+    """
 
 
 class InjectionDetector(Protocol):

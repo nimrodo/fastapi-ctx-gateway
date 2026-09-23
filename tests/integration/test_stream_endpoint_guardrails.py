@@ -106,14 +106,13 @@ def test_mode_flag_detects_logs_counts_and_still_reaches_provider(monkeypatch) -
     assert _labeled_counter_value(app.state.metrics.prompt_injection_detections, mode="flag") == 1
 
 
-def test_mode_block_behaves_like_flag_until_enforcement_ticket(monkeypatch) -> None:
-    """mode=block currently only observes; enforcement (#19) is a follow-up ticket."""
-    sse_body = gemini_sse_event(text="hi", finish_reason="STOP", total_tokens=3)
-    with respx.mock(base_url="https://generativelanguage.googleapis.com") as mock:
+def test_mode_block_rejects_before_provider_call(monkeypatch) -> None:
+    """mode=block rejects a matching request before rate-limiting/pruning/cache/provider."""
+    with respx.mock(
+        base_url="https://generativelanguage.googleapis.com", assert_all_called=False
+    ) as mock:
         route = mock.post("/v1beta/models/gemini-3.7-flash:streamGenerateContent").mock(
-            return_value=httpx.Response(
-                200, content=sse_body, headers={"content-type": "text/event-stream"}
-            )
+            return_value=httpx.Response(200, content=b"data: {}\n\n")
         )
 
         app = create_app(_settings(monkeypatch, "block"))
@@ -121,8 +120,9 @@ def test_mode_block_behaves_like_flag_until_enforcement_ticket(monkeypatch) -> N
         with TestClient(app) as client:
             response = _post(client)
 
-    assert response.status_code == 200
-    assert route.call_count == 1
+    assert response.status_code == 400
+    assert response.json()["error"]["type"] == "prompt_injection_detected"
+    assert route.call_count == 0
     assert _labeled_counter_value(app.state.metrics.prompt_injection_detections, mode="block") == 1
 
 

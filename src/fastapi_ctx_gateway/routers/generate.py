@@ -25,7 +25,7 @@ from fastapi_ctx_gateway.deps import (
     get_semantic_cache,
     get_settings,
 )
-from fastapi_ctx_gateway.guardrails import InjectionDetector
+from fastapi_ctx_gateway.guardrails import InjectionDetector, PromptInjectionDetectedError
 from fastapi_ctx_gateway.observability.metrics import Metrics
 from fastapi_ctx_gateway.observability.tracing import hit_path_span, pre_proxy_span
 from fastapi_ctx_gateway.providers.base import Provider
@@ -76,12 +76,12 @@ async def stream_generate_content(
 
     Injection detection runs against the raw, pre-pruned turns/system and
     is skipped entirely (not invoked-and-ignored) when mode is "off" — no
-    measurable overhead for deployments that don't opt in. In both "flag"
-    and "block" modes a match is currently observed only (logged +
-    counted); "block" mode enforcement is a follow-up (see issue #19).
-    create_app() refuses to boot if a mode is enabled with no detector
-    configured, so injection_detector is guaranteed non-None whenever
-    this branch is taken.
+    measurable overhead for deployments that don't opt in. A match is
+    always logged and counted; in "block" mode it additionally short-
+    circuits the request before rate-limiting, pruning, cache lookup, or
+    the provider are touched. create_app() refuses to boot if a mode is
+    enabled with no detector configured, so injection_detector is
+    guaranteed non-None whenever this branch is taken.
     """
     with pre_proxy_span():
         if settings.prompt_injection_mode != "off":
@@ -96,6 +96,8 @@ async def stream_generate_content(
                     tenant.id,
                     model,
                 )
+                if settings.prompt_injection_mode == "block":
+                    raise PromptInjectionDetectedError
 
         rate_limit_key = f"{tenant.api_key}:{model}"
         estimated_tokens = _token_estimator.estimate(turns=request.turns, system=request.system)

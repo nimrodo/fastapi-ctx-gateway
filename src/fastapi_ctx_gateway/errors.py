@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from fastapi_ctx_gateway.circuit_breaker import CircuitOpenError
+from fastapi_ctx_gateway.guardrails import PromptInjectionDetectedError
 from fastapi_ctx_gateway.ratelimit import RateLimitExceeded
 from fastapi_ctx_gateway.schemas.neutral import NeutralError, NeutralErrorEvent
 
@@ -43,6 +44,18 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=503,
             content=_error_body("upstream temporarily unavailable", "circuit_open"),
+        )
+
+    @app.exception_handler(PromptInjectionDetectedError)
+    async def _prompt_injection_detected(
+        request: Request, exc: PromptInjectionDetectedError
+    ) -> JSONResponse:
+        del request, exc
+        return JSONResponse(
+            status_code=400,
+            content=_error_body(
+                "request content matched a prompt-injection pattern", "prompt_injection_detected"
+            ),
         )
 
     @app.exception_handler(ProviderNotFoundError)
