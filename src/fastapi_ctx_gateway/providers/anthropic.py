@@ -129,13 +129,12 @@ def _error_message(exc: anthropic.APIStatusError, api_key: str) -> str:
     structural guarantee this code silently depends on.
     """
     body = exc.body
+    detail = exc.message
     if isinstance(body, dict):
         err = body.get("error")
         if isinstance(err, dict) and isinstance(err.get("message"), str):
-            message = f"Anthropic returned {exc.status_code}: {err['message']}"
-            return redact_secrets(message, secrets=[api_key])
-    message = f"Anthropic returned {exc.status_code}: {exc.message}"
-    return redact_secrets(message, secrets=[api_key])
+            detail = err["message"]
+    return redact_secrets(f"Anthropic returned {exc.status_code}: {detail}", secrets=[api_key])
 
 
 # --- request translation: neutral -> anthropic SDK kwargs ---

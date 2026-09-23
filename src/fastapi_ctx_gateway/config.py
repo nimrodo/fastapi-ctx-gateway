@@ -116,12 +116,13 @@ class Settings(BaseSettings):
     rate_limit_window_s: int = 60
 
     # Failed-auth backstop (auth.py::verify_api_key), independent of the
-    # per-tenant-model limiter above: keyed per-source-IP, gates every
-    # request (not just ones that turn out to be failures) before
-    # resolve_tenant runs — see docs/security.md. Generous by default
-    # (20/window) so a legitimate tenant mistyping their own key a few
-    # times, or several tenants behind one NAT'd IP, isn't disproportionately
-    # locked out; tighten per-deployment if brute-forcing is a real concern.
+    # per-tenant-model limiter above: keyed per-source-IP, only consulted
+    # (and only recorded against) when resolve_tenant fails — a request
+    # with a valid key never touches this limiter — see docs/security.md.
+    # Generous by default (20/window) so a legitimate tenant mistyping
+    # their own key a few times, or several tenants behind one NAT'd IP,
+    # isn't disproportionately locked out; tighten per-deployment if
+    # brute-forcing is a real concern.
     auth_failure_rpm_limit: int = 20
     auth_failure_window_s: int = 60
 

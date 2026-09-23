@@ -49,6 +49,18 @@ def test_redacts_key_shaped_fragments_even_when_not_passed_as_a_secret() -> None
     assert "[REDACTED]" in result
 
 
+def test_does_not_redact_a_secret_shorter_than_the_minimum_length() -> None:
+    """A too-short "secret" (e.g. a 1-char test/placeholder key) is left
+    alone rather than blindly substring-replaced, which would otherwise
+    mangle ordinary words that happen to contain it (see redact_secrets's
+    _MIN_REDACTABLE_SECRET_LENGTH docstring) — a real upstream key is
+    never this short, so nothing meaningful goes unredacted in practice.
+    """
+    body = json.dumps({"error": {"message": "API key not valid"}}).encode()
+    result = parse_error_message("Gemini", 400, body, secrets=["k"])
+    assert result == "Gemini returned 400: API key not valid"
+
+
 def test_regex_backstop_also_catches_anthropic_and_gemini_key_shapes() -> None:
     anthropic_body = json.dumps({"error": {"message": "bad key sk-ant-abcdefghijklmnop"}}).encode()
     gemini_body = json.dumps({"error": {"message": "bad key AIzaSyAbcdefghijklmnop"}}).encode()

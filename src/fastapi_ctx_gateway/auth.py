@@ -64,6 +64,17 @@ async def verify_api_key(
     app.py), and once a source's failed-auth budget for its window is
     exhausted, further failed attempts from it get 429 instead of 401 —
     the credential-stuffing/brute-force backstop from docs/security.md.
+
+    Deliberately `resolve_tenant`-then-check, not check-then-`resolve_tenant`:
+    `RateLimiter.check()` is an atomic check-*and*-consume with no
+    non-consuming peek, so checking first would consume budget on every
+    request, including ones that turn out valid — exactly what "only apply
+    the check to failure" (docs/security.md) rules out. The cost is that an
+    already-exhausted source still pays for one `resolve_tenant` call
+    (in-memory, `hmac.compare_digest` over the configured keys) per attempt
+    rather than being short-circuited before it — cheap enough not to
+    matter, and it keeps a legitimate tenant's own retries never touching
+    Redis for this limiter at all.
     """
     settings = request.app.state.settings
     source = request.client.host if request.client else "unknown"
