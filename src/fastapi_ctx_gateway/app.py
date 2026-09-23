@@ -16,6 +16,11 @@ from fastapi_ctx_gateway.cache.vectorizer import simple_char_code_tokenize
 from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
 from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import register_exception_handlers
+from fastapi_ctx_gateway.guardrails import (
+    InjectionDetector,
+    LocalClassifierInjectionDetector,
+    placeholder_tokenize,
+)
 from fastapi_ctx_gateway.observability.metrics import Metrics, build_metrics
 from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.providers.registry import SPECS
@@ -71,6 +76,40 @@ def _build_semantic_cache(settings: Settings, metrics: Metrics) -> SemanticCache
         return None
 
 
+def _build_injection_detector(settings: Settings, metrics: Metrics) -> InjectionDetector | None:
+    """Build the injection detector, or None if detection is off.
+
+    Unlike `_build_semantic_cache`, misconfiguration here raises rather
+    than silently disabling: the cache is a pure optimization, but a
+    deployer who set prompt_injection_mode to "flag"/"block" explicitly
+    asked for detection — quietly running with no detector would hide a
+    security control that looks enabled but isn't.
+    """
+    if settings.prompt_injection_backend is None:
+        if settings.prompt_injection_mode != "off":
+            raise RuntimeError(
+                f"prompt_injection_mode={settings.prompt_injection_mode!r} requires "
+                "prompt_injection_backend to be configured (e.g. 'local_classifier')"
+            )
+        return None
+    if settings.prompt_injection_model_path is None:
+        raise RuntimeError(
+            "prompt_injection_backend='local_classifier' requires prompt_injection_model_path"
+        )
+    if not settings.prompt_injection_model_path.exists():
+        raise RuntimeError(
+            f"prompt-injection model not found at {settings.prompt_injection_model_path}"
+        )
+    session = ort.InferenceSession(str(settings.prompt_injection_model_path))
+    return LocalClassifierInjectionDetector(
+        session=session,
+        tokenize=placeholder_tokenize,
+        threshold=settings.prompt_injection_threshold,
+        timeout_s=settings.prompt_injection_timeout_ms / 1000,
+        on_fail_open=metrics.prompt_injection_fail_open.inc,
+    )
+
+
 def _registered_provider_names(settings: Settings) -> list[str]:
     """The provider names this Settings will register.
 
@@ -120,6 +159,12 @@ def create_app(settings: Settings) -> FastAPI:
         for name in provider_names
     }
     metrics = build_metrics()
+    # Synchronous like the breakers above — ONNX session construction needs
+    # no async resources. Raises at create_app() time (not lifespan) if
+    # prompt_injection_mode is on with no usable backend (see the
+    # docstring on _build_injection_detector for why this fails loud
+    # rather than degrading like the semantic cache does).
+    injection_detector = _build_injection_detector(settings, metrics)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -155,6 +200,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.state.settings = settings
     app.state.circuit_breakers = circuit_breakers
     app.state.metrics = metrics
+    app.state.injection_detector = injection_detector
 
     app.include_router(generate_router)
     register_exception_handlers(app)

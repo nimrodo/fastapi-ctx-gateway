@@ -2,6 +2,7 @@
 
 import builtins
 import sys
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -109,6 +110,48 @@ def test_gemini_not_registered_when_key_unset(monkeypatch) -> None:
     app = create_app(Settings())
     with TestClient(app):
         assert set(app.state.providers) == {"openai"}
+
+
+# --- prompt-injection detector wiring ---
+
+
+def test_injection_detector_is_none_when_mode_is_off(monkeypatch) -> None:
+    app = create_app(_settings(monkeypatch))
+    with TestClient(app):
+        assert app.state.injection_detector is None
+
+
+def test_boot_fails_when_mode_enabled_with_no_backend_configured(monkeypatch) -> None:
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODE", "flag")
+    with pytest.raises(RuntimeError, match="prompt_injection_backend"):
+        create_app(_settings(monkeypatch))
+
+
+def test_boot_fails_when_backend_configured_with_no_model_path(monkeypatch) -> None:
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODE", "flag")
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_BACKEND", "local_classifier")
+    with pytest.raises(RuntimeError, match="prompt_injection_model_path"):
+        create_app(_settings(monkeypatch))
+
+
+def test_boot_fails_when_model_path_does_not_exist(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODE", "flag")
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_BACKEND", "local_classifier")
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODEL_PATH", str(tmp_path / "missing.onnx"))
+    with pytest.raises(RuntimeError, match="not found"):
+        create_app(_settings(monkeypatch))
+
+
+def test_injection_detector_is_registered_when_backend_and_model_configured(monkeypatch) -> None:
+    fixture_model = (
+        Path(__file__).parent.parent / "fixtures" / "tiny_classifier_model" / "model.onnx"
+    )
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODE", "flag")
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_BACKEND", "local_classifier")
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODEL_PATH", str(fixture_model))
+    app = create_app(_settings(monkeypatch))
+    with TestClient(app):
+        assert app.state.injection_detector is not None
 
 
 def test_boot_fails_with_actionable_error_when_extra_missing(monkeypatch) -> None:

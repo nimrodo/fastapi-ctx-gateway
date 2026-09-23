@@ -69,6 +69,28 @@ def test_settings_requires_tenant_api_keys(monkeypatch) -> None:
         Settings()
 
 
+def test_settings_prompt_injection_defaults(monkeypatch) -> None:
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
+    settings = Settings()
+    assert settings.prompt_injection_mode == "off"
+    assert settings.prompt_injection_backend is None
+    assert settings.prompt_injection_model_path is None
+
+
+def test_settings_prompt_injection_backend_can_be_configured(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"test-key":"test-tenant"}')
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODE", "flag")
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_BACKEND", "local_classifier")
+    model_path = tmp_path / "model.onnx"
+    monkeypatch.setenv("GATEWAY_PROMPT_INJECTION_MODEL_PATH", str(model_path))
+    settings = Settings()
+    assert settings.prompt_injection_mode == "flag"
+    assert settings.prompt_injection_backend == "local_classifier"
+    assert settings.prompt_injection_model_path == model_path
+
+
 def test_token_budget_config_known_model() -> None:
     config = TokenBudgetConfig()
     assert config.budget_for("gemini-3.7-flash") == 32_000

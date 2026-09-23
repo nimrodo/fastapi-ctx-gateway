@@ -62,6 +62,7 @@ nav:
       - "0006: Neutral schema and provider abstraction": adr/0006-neutral-schema-and-provider-abstraction.md
       - "0007: Anthropic SDK provider": adr/0007-anthropic-sdk-provider.md
       - "0008: Providers are opt-in extras": adr/0008-providers-are-opt-in-extras.md
+      - "0009: Local ONNX classifier over guardrails-ai": adr/0009-local-onnx-classifier-over-guardrails-ai.md
   - Reference:
       - reference/index.md
       - App: reference/app.md
@@ -73,6 +74,7 @@ nav:
       - Circuit breaker: reference/circuit-breaker.md
       - Proxy: reference/proxy.md
       - Providers: reference/providers.md
+      - Guardrails: reference/guardrails.md
       - Schemas: reference/schemas.md
       - Observability: reference/observability.md
 
