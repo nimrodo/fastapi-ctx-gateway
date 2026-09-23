@@ -23,3 +23,9 @@ Vocabulary used consistently across this codebase, its tests, commit messages, a
 **Finished cleanly** — a stream is "finished cleanly" only once a chunk carrying `finish_reason` has been observed (`StreamAccumulator.finished_cleanly`). Anything else — client disconnect, upstream error, a truncated response — is not a clean finish, and neither reconciliation nor cache-store nor a circuit-breaker success is recorded for it.
 
 **Pruned turns** — the `turns[]` array (neutral schema) after `TokenBudgetPruner.prune()` has run. The semantic cache always embeds and looks up against pruned turns, never raw — pruning happens first so equivalent conversations converge to the same cache key.
+
+**Tenant boundary** — the guarantee that no tenant's request, cached response, or gateway-internal state is visible to, or corruptible by, another tenant. The umbrella property; cache partitioning, tenant resolution (auth), and log/error handling must each independently uphold it.
+
+**Partitioning** — the cache-specific mechanism enforcing the tenant boundary: RedisVL `filterable_fields` tagging cache entries by `{tenant_id, model}` (see ADR-0003), so a lookup or store for one tenant never surfaces another's cached data. A **partitioning failure** is a tenant-boundary violation that happens through this specific mechanism, as distinct from an auth confusion or a content leak.
+
+**Content leak** — tenant request/response content (`Turn`/`Part` text) or credential material (a tenant's gateway API key, or an upstream provider's) becoming readable outside the request/response path it belongs to — in a log line, a metric label, a trace span, or a relayed upstream error body.
