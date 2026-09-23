@@ -43,6 +43,11 @@ GATEWAY_TOKEN_BUDGETS='{"budgets": {"gemini-3.7-flash": 32000, "gemini-2.5-pro":
 | `GATEWAY_CACHE_TTL_S` | `3600` | Cache entry TTL |
 | `GATEWAY_CACHE_TEMPERATURE_THRESHOLD` | `0.3` | Requests above this (or with `temperature` unset) bypass the cache |
 | `GATEWAY_CACHE_LOOKUP_TIMEOUT_MS` | `50` | Bounds the fail-open path if Redis is slow/down |
+| `GATEWAY_PROMPT_INJECTION_MODE` | `off` | `off` (detector never runs) / `flag` (detected, logged, counted, request proceeds) / `block` (same as `flag` for now — enforcement is a follow-up, [issue #19](https://github.com/nimrodo/fastapi-ctx-gateway/issues/19)) |
+| `GATEWAY_PROMPT_INJECTION_BACKEND` | *(unset)* | `local_classifier` is the only backend today. Unset means no ML backend is registered — **boot fails** if `GATEWAY_PROMPT_INJECTION_MODE` isn't `off`, since a mode the deployer explicitly enabled must not silently become a no-op |
+| `GATEWAY_PROMPT_INJECTION_MODEL_PATH` | *(unset)* | ONNX classification model path, required when the backend is `local_classifier`. Same local-model pattern as `GATEWAY_EMBEDDING_MODEL_PATH` — `onnxruntime` is already a core dependency, so no extra install is needed |
+| `GATEWAY_PROMPT_INJECTION_THRESHOLD` | `0.5` | Injection-class probability at/above which a request is flagged |
+| `GATEWAY_PROMPT_INJECTION_TIMEOUT_MS` | `200` | Bounds the fail-open path if classification is slow/erroring. Larger than the cache's timeout since local model inference is CPU-bound, not network-bound |
 | `GATEWAY_TOKEN_BUDGETS` | flash: 32k, pro: 64k | Per-model pruning-trigger caps |
 | `GATEWAY_RPM_LIMIT` | `60` | Requests per minute, per tenant+model |
 | `GATEWAY_TPM_LIMIT` | `100000` | Tokens per minute, per tenant+model |

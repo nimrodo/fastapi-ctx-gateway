@@ -7,7 +7,9 @@ from fastapi import Request
 
 from fastapi_ctx_gateway.cache import SemanticCache
 from fastapi_ctx_gateway.circuit_breaker import CircuitBreaker
+from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.errors import ProviderNotFoundError
+from fastapi_ctx_gateway.guardrails import InjectionDetector
 from fastapi_ctx_gateway.observability.metrics import Metrics
 from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.pruning import TokenBudgetPruner
@@ -54,7 +56,24 @@ def get_circuit_breaker(provider_name: str, request: Request) -> CircuitBreaker:
     return breaker
 
 
+def get_settings(request: Request) -> Settings:
+    """Return the Settings this app was built with."""
+    settings: Settings = request.app.state.settings
+    return settings
+
+
 def get_metrics(request: Request) -> Metrics:
     """Return the shared Prometheus counters built once during app startup."""
     metrics: Metrics = request.app.state.metrics
     return metrics
+
+
+def get_injection_detector(request: Request) -> InjectionDetector | None:
+    """Return the shared InjectionDetector, or None if no backend is configured.
+
+    Only None when prompt_injection_mode is "off" — create_app() fails
+    boot if a mode is enabled with no backend configured, so callers that
+    already checked the mode can rely on this being non-None.
+    """
+    detector: InjectionDetector | None = request.app.state.injection_detector
+    return detector

@@ -1,6 +1,7 @@
 """Runtime configuration for the gateway."""
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -79,6 +80,36 @@ class Settings(BaseSettings):
     # matching the cache's fail-open contract. Point this at a real
     # exported model (see scripts/download_model.py) to enable it.
     embedding_model_path: Path | None = None
+
+    # off: detector never runs (no measurable overhead). flag: detected,
+    # logged, counted, request proceeds unmodified. block: same as flag for
+    # now — enforcement is a follow-up (see issue #19). Accepts the full
+    # enum from the start so enabling enforcement later needs no
+    # config-schema change.
+    prompt_injection_mode: Literal["off", "flag", "block"] = "off"
+
+    # Unset (the default) means no ML backend is registered. Unlike the
+    # semantic cache, this is a security control the deployer explicitly
+    # opted into via prompt_injection_mode — silently downgrading to a
+    # no-op would hide that; create_app() fails boot instead (see app.py)
+    # if mode != "off" with no backend configured. "local_classifier" is
+    # the only backend today; the Literal is shaped to grow (e.g. a future
+    # LLM-self-check backend) without a schema break.
+    prompt_injection_backend: Literal["local_classifier"] | None = None
+    # Required when prompt_injection_backend="local_classifier". Same
+    # local-ONNX-model pattern as embedding_model_path — onnxruntime is
+    # already a core dependency, so no extra install is needed for this
+    # backend specifically (see docs/tutorial/configuration.md and
+    # scripts/download_model.py for how to export a real model).
+    prompt_injection_model_path: Path | None = None
+    # Probability (of the model's "injection" class) at or above which a
+    # request is flagged. 0.5 is a neutral midpoint; tune against your own
+    # exported model's calibration.
+    prompt_injection_threshold: float = 0.5
+    # Local model inference is CPU-bound and slower than the cache's
+    # network-bound lookup, hence a separate, larger timeout rather than
+    # reusing cache_lookup_timeout_ms.
+    prompt_injection_timeout_ms: int = 200
 
     rpm_limit: int = 60
     tpm_limit: int = 100_000
