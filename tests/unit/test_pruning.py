@@ -81,6 +81,22 @@ def test_non_text_parts_are_never_inspected_by_dedup() -> None:
     assert len(dup_survivors) == 1
 
 
+def test_dedup_does_not_collide_split_text_with_embedded_separator() -> None:
+    """Regression for the fingerprint collision documented in docs/security.md.
+
+    Two distinct TextParts used to fingerprint identically to one TextPart
+    containing a literal old-separator byte between them, wrongly deduping
+    genuinely different turns.
+    """
+    pruner = TokenBudgetPruner(TINY_BUDGET)
+    split = Turn(role="user", parts=[TextPart(text="A"), TextPart(text="B")])
+    embedded = Turn(role="user", parts=[TextPart(text="A\x00B")])
+    turns = [_turn("filler " * 10), split, embedded]
+    result = pruner.prune(turns, system=None, model="test-model")
+    survivors = [t for t in result.turns if t in (split, embedded)]
+    assert len(survivors) == 2  # both kept: they are not exact duplicates
+
+
 def test_non_text_parts_are_never_mutated() -> None:
     pruner = TokenBudgetPruner(ROOMY_BUDGET)
     binary = BinaryPart(mime_type="image/png", data="AAAA")

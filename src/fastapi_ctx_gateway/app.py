@@ -182,6 +182,18 @@ def create_app(settings: Settings) -> FastAPI:
                 tpm_limit=settings.tpm_limit,
                 window_s=settings.rate_limit_window_s,
             )
+            # A second, independent RateLimiter instance (new key namespace,
+            # not a second implementation) gating failed auth attempts —
+            # see auth.py::verify_api_key and docs/security.md.
+            # tpm_limit=0 is deliberate: every check here passes
+            # estimated_tokens=0, so the token ceiling never binds and only
+            # the rpm ceiling matters.
+            app.state.auth_rate_limiter = RateLimiter(
+                redis_client=redis_client,
+                rpm_limit=settings.auth_failure_rpm_limit,
+                tpm_limit=0,
+                window_s=settings.auth_failure_window_s,
+            )
             app.state.pruner = TokenBudgetPruner(settings.token_budgets)
             app.state.semantic_cache = _build_semantic_cache(settings, metrics)
             try:

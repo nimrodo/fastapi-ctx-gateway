@@ -10,6 +10,7 @@ being silently corrupted by a heuristic that can't reason about it.
 from pydantic import BaseModel
 
 from fastapi_ctx_gateway.config import TokenBudgetConfig
+from fastapi_ctx_gateway.encoding import encode_fields
 from fastapi_ctx_gateway.ratelimit import TokenEstimator
 from fastapi_ctx_gateway.schemas.neutral import Part, TextPart, Turn
 
@@ -70,8 +71,11 @@ class TokenBudgetPruner:
         # Text only, deliberately: hashing/comparing non-text bytes (images,
         # audio, files) would be slow and isn't needed for v1's exact-repeat
         # detection (e.g. a client retrying the same text turn).
+        # encode_fields (not a fixed separator) so attacker-controlled text
+        # containing the old separator bytes can't forge a collision with a
+        # genuinely different turn — see docs/security.md.
         texts = [part.text for part in turn.parts if isinstance(part, TextPart)]
-        return turn.role + "\x00" + "\x00".join(texts)
+        return encode_fields([turn.role, *texts])
 
     def _sliding_window(
         self, turns: list[Turn], budget: int, system: list[Part] | None

@@ -79,7 +79,9 @@ class GeminiProvider(Provider):
                             continue
                         body = await response.aread()
                         yield neutral_error_event(
-                            parse_error_message("Gemini", response.status_code, body),
+                            parse_error_message(
+                                "Gemini", response.status_code, body, secrets=[self._api_key]
+                            ),
                             response.status_code,
                         )
                         return

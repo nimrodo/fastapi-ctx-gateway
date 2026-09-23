@@ -80,7 +80,9 @@ class OpenAIProvider(Provider):
                             continue
                         body = await response.aread()
                         yield neutral_error_event(
-                            parse_error_message("OpenAI", response.status_code, body),
+                            parse_error_message(
+                                "OpenAI", response.status_code, body, secrets=[self._api_key]
+                            ),
                             response.status_code,
                         )
                         return
