@@ -1,4 +1,4 @@
-"""Context-aware agentic API gateway for Gemini.
+"""Context-aware agentic API gateway with pluggable LLM providers.
 
 Public API surface: build a configured app via ``create_app(settings)``.
 The CLI entrypoint (``main``) is intentionally not re-exported here — see

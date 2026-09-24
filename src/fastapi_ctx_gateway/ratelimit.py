@@ -18,7 +18,7 @@ class TokenEstimator:
 
     Deliberately not a real tokenizer: this only needs to be a fast,
     conservative proxy for admission control. Actual usage is reconciled
-    from Gemini's real usageMetadata once the response completes.
+    from the provider's own reported usage once the response completes.
     """
 
     _CHARS_PER_TOKEN = 4

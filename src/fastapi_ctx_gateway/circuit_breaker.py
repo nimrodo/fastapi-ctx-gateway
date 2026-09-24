@@ -57,7 +57,7 @@ class CircuitBreaker:
         return self._state
 
     def allow_request(self) -> bool:
-        """O(1), no I/O: whether a request should be allowed to proceed to Gemini."""
+        """O(1), no I/O: whether a request should be allowed to proceed to the upstream provider."""
         current = self.state
         if current is CircuitState.CLOSED:
             return True

@@ -86,10 +86,9 @@ class Settings(BaseSettings):
     embedding_model_path: Path | None = None
 
     # off: detector never runs (no measurable overhead). flag: detected,
-    # logged, counted, request proceeds unmodified. block: same as flag for
-    # now — enforcement is a follow-up (see issue #19). Accepts the full
-    # enum from the start so enabling enforcement later needs no
-    # config-schema change.
+    # logged, counted, request proceeds unmodified. block: additionally
+    # short-circuits the request with a 400 (see guardrails.py and
+    # routers/generate.py).
     prompt_injection_mode: Literal["off", "flag", "block"] = "off"
 
     # Unset (the default) means no ML backend is registered. Unlike the
