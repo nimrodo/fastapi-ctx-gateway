@@ -1,1 +1,1 @@
-"""Pydantic models mirroring Gemini's wire schema (validation only, never translation)."""
+"""The gateway's neutral request/response/error contract — see schemas/neutral.py."""

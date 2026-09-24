@@ -1,8 +1,9 @@
 """Gateway-issued API key auth.
 
 This authenticates clients to *this* gateway (`x-gateway-api-key`) — a
-separate concern from `x-goog-api-key`, which the gateway itself uses to
-authenticate to Gemini upstream (see proxy/client.py).
+separate concern from the credentials each provider adapter uses to
+authenticate to its own upstream (e.g. `x-goog-api-key` for Gemini; see
+`providers/registry.py`).
 """
 
 import hmac

@@ -2,10 +2,10 @@
 
 `cache.hit_path` covers embed + cache lookup + response synthesis on a
 cache hit (target: <=15-20ms). `request.pre_proxy` covers rate-limit +
-breaker-check + prune, ending right before Gemini is called on a miss
-(target: low single-digit ms, additive to Gemini's own latency). They're
-sibling spans, not nested — a given request emits at most one of them
-plus (on a miss) the proxy call itself.
+breaker-check + prune, ending right before the upstream provider is
+called on a miss (target: low single-digit ms, additive to the
+provider's own latency). They're sibling spans, not nested — a given
+request emits at most one of them plus (on a miss) the proxy call itself.
 
 Each helper accepts an optional `tracer`, defaulting to the process-wide
 one resolved against whatever TracerProvider app.py installed at
@@ -38,6 +38,6 @@ def hit_path_span(tracer: Tracer | None = None) -> Iterator[None]:
 
 @contextmanager
 def pre_proxy_span(tracer: Tracer | None = None) -> Iterator[None]:
-    """Wrap rate-limit + breaker-check + prune, before the Gemini call on a miss."""
+    """Wrap rate-limit + breaker-check + prune, before the upstream provider call on a miss."""
     with (tracer or get_tracer()).start_as_current_span("request.pre_proxy"):
         yield
