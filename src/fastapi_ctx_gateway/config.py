@@ -73,7 +73,11 @@ class Settings(BaseSettings):
     # Required (no default): with no entries every request 401s (see
     # auth.py), so an empty mapping is never a working configuration —
     # better to fail at boot than ship a gateway nothing can call.
-    tenant_api_keys: dict[str, str]
+    # SecretStr-keyed (not dict[str, str]) so a repr()/log of Settings
+    # masks tenant keys the same way the upstream provider keys already
+    # are — see #24. SecretStr is hashable/equal-by-value, so it works as
+    # a dict key with no other change to the lookup call sites.
+    tenant_api_keys: dict[SecretStr, str]
 
     # None (the default) disables the semantic cache entirely — a missing
     # or unloadable model degrades to "always miss," never a boot failure,

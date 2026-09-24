@@ -9,6 +9,7 @@ import hmac
 from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException, Request
+from pydantic import SecretStr
 
 from fastapi_ctx_gateway.deps import get_auth_rate_limiter
 from fastapi_ctx_gateway.ratelimit import RateLimiter, RateLimitExceeded
@@ -21,10 +22,15 @@ class Tenant:
     """An authenticated caller of the gateway."""
 
     id: str
-    api_key: str
+    # SecretStr, not str: the dataclass's auto-generated __repr__ would
+    # otherwise print the raw gateway API key on any accidental
+    # `logger.debug(tenant)`/f"{tenant}" — see #24. Unwrap with
+    # `.get_secret_value()` only at the point of use (same convention as
+    # the upstream provider keys in providers/registry.py).
+    api_key: SecretStr
 
 
-def resolve_tenant(api_key: str | None, tenant_api_keys: dict[str, str]) -> Tenant:
+def resolve_tenant(api_key: str | None, tenant_api_keys: dict[SecretStr, str]) -> Tenant:
     """Look up a Tenant for a gateway API key, or raise 401.
 
     Compares against every candidate key with `hmac.compare_digest`
@@ -40,11 +46,11 @@ def resolve_tenant(api_key: str | None, tenant_api_keys: dict[str, str]) -> Tena
     api_key_bytes = api_key.encode()
     matched_tenant_id: str | None = None
     for candidate_key, tenant_id in tenant_api_keys.items():
-        if hmac.compare_digest(candidate_key.encode(), api_key_bytes):
+        if hmac.compare_digest(candidate_key.get_secret_value().encode(), api_key_bytes):
             matched_tenant_id = tenant_id
     if matched_tenant_id is None:
         raise HTTPException(status_code=401, detail="invalid or missing API key")
-    return Tenant(id=matched_tenant_id, api_key=api_key)
+    return Tenant(id=matched_tenant_id, api_key=SecretStr(api_key))
 
 
 async def verify_api_key(
