@@ -175,7 +175,7 @@ def create_app(settings: Settings) -> FastAPI:
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             app.state.http_client = http_client
             app.state.redis_client = redis_client
-            app.state.providers = _build_providers(settings, http_client)
+            app.state.providers.update(_build_providers(settings, http_client))
             app.state.rate_limiter = RateLimiter(
                 redis_client=redis_client,
                 rpm_limit=settings.rpm_limit,
@@ -213,6 +213,14 @@ def create_app(settings: Settings) -> FastAPI:
     app.state.circuit_breakers = circuit_breakers
     app.state.metrics = metrics
     app.state.injection_detector = injection_detector
+    # Populated synchronously (not inside lifespan, unlike the dict below is
+    # merged into) so register_agent_provider() can add an entry any time
+    # after create_app() returns, without depending on lifespan ordering —
+    # an agent provider has no async resource (http_client, etc.) to wait
+    # for. Lifespan below adds the vendor providers via .update(), never
+    # reassigning this dict, so an already-registered agent provider is
+    # never clobbered.
+    app.state.providers = {}
 
     app.include_router(generate_router)
     register_exception_handlers(app)

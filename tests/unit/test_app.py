@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from fastapi_ctx_gateway.app import create_app
 from fastapi_ctx_gateway.config import Settings
+from fastapi_ctx_gateway.providers.agent import register_agent_provider
 
 
 def _settings(monkeypatch) -> Settings:
@@ -152,6 +153,40 @@ def test_injection_detector_is_registered_when_backend_and_model_configured(monk
     app = create_app(_settings(monkeypatch))
     with TestClient(app):
         assert app.state.injection_detector is not None
+
+
+def test_register_agent_provider_before_lifespan_survives_startup(monkeypatch) -> None:
+    """An agent provider registered right after create_app() (no lifespan
+    entered yet) must still be present once the app starts, alongside the
+    vendor providers the lifespan itself builds — neither clobbers the
+    other, whichever order they populate app.state.providers in.
+    """
+    app = create_app(_settings(monkeypatch))
+    provider = register_agent_provider(app, name="my-agent", agent=object())
+    assert app.state.providers["my-agent"] is provider
+    with TestClient(app):
+        assert set(app.state.providers) == {"gemini", "my-agent"}
+        assert "my-agent" in app.state.circuit_breakers
+
+
+def test_register_agent_provider_after_lifespan_also_works(monkeypatch) -> None:
+    app = create_app(_settings(monkeypatch))
+    with TestClient(app):
+        register_agent_provider(app, name="my-agent", agent=object())
+        assert set(app.state.providers) == {"gemini", "my-agent"}
+
+
+def test_register_agent_provider_defaults_cache_enabled_false(monkeypatch) -> None:
+    app = create_app(_settings(monkeypatch))
+    provider = register_agent_provider(app, name="my-agent", agent=object())
+    assert provider.cache_enabled is False
+
+
+def test_register_agent_provider_circuit_breaker_defaults_to_settings(monkeypatch) -> None:
+    app = create_app(_settings(monkeypatch))
+    register_agent_provider(app, name="my-agent", agent=object())
+    breaker = app.state.circuit_breakers["my-agent"]
+    assert breaker._failure_threshold == app.state.settings.circuit_breaker_failure_threshold
 
 
 def test_boot_fails_with_actionable_error_when_extra_missing(monkeypatch) -> None:

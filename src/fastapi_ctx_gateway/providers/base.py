@@ -17,6 +17,14 @@ class Provider(ABC):
 
     name: str
 
+    # Whether this provider's responses are eligible for the semantic cache
+    # at all (the request-shape eligibility check in cache/semantic_cache.py
+    # still applies on top of this). True for the vendor HTTP providers,
+    # whose calls are pure functions of the request; AgentProvider overrides
+    # this to False by default since an arbitrary agent's own code can have
+    # side effects a cached replay would skip.
+    cache_enabled: bool = True
+
     @abstractmethod
     def stream(self, model: str, request: NeutralGenerateRequest) -> AsyncIterator[bytes]:
         r"""Call upstream and yield neutral-schema SSE bytes.
