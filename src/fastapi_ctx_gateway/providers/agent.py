@@ -9,12 +9,16 @@ FastAPI startup code, following the "mount as a library" convention
 (docs/tutorial/using-as-a-library.md) rather than `providers/registry.py`'s
 Settings-driven `ProviderSpec` table, since there is no credential to detect.
 
-Text-only for v1 (multimodal is tracked separately, see issue #27) and
-duck-typed: no hard import of `langchain_core`/`langgraph` types. Anything
+Duck-typed: no hard import of `langchain_core`/`langgraph` types. Anything
 exposing `.astream`/`.stream`/`.ainvoke`/`.invoke` works, including a plain
 LangChain `Runnable`. LangGraph-specific intermediate-event streaming
 (`stream_mode=["messages", "custom"]`) is a separate adapter path, not
 implemented here (see the map, issue #28).
+
+`BinaryPart` is supported inbound as LangChain content blocks (see
+`_turn_content`) for both invocation paths; the underlying agent/model
+raises if it can't handle a given block — no capability detection here (see
+issue #41's map).
 """
 
 import asyncio
@@ -30,6 +34,7 @@ from fastapi_ctx_gateway.config import Settings
 from fastapi_ctx_gateway.providers.base import Provider
 from fastapi_ctx_gateway.providers.sse import neutral_error_event
 from fastapi_ctx_gateway.schemas.neutral import (
+    BinaryPart,
     Delta,
     FinishReason,
     IntermediateStep,
@@ -110,10 +115,6 @@ class AgentProvider(Provider):
         """Invoke the wrapped agent and yield neutral SSE bytes. Never raises."""
         try:
             messages = _to_agent_messages(request)
-        except ValueError as exc:
-            yield neutral_error_event(str(exc), None, error_type="agent_input_unsupported")
-            return
-        try:
             if _is_langgraph_compiled_graph(self._agent):
                 async for event in _stream_langgraph_events(self._agent, messages):
                     yield event
@@ -173,28 +174,76 @@ def register_agent_provider(
 # --- request translation: neutral -> plain (role, content) message tuples ---
 
 
-def _turn_text(parts: list[Part]) -> str:
-    texts: list[str] = []
+def _block_kind(mime_type: str) -> str:
+    """`BinaryPart.mime_type` -> the LangChain content-block `type` discriminator."""
+    if mime_type.startswith("image/"):
+        return "image"
+    if mime_type.startswith("audio/"):
+        return "audio"
+    return "file"
+
+
+def _binary_part_to_block(part: BinaryPart) -> dict[str, Any]:
+    """`BinaryPart` -> a v0.3-era, `source_type`-keyed LangChain content block.
+
+    This is the cross-vendor shape `langchain_core.messages.content`'s own
+    `block_translators/langchain_v0.py` normalizes on read (see issue #42's
+    research doc, docs/agents/research/issue-42-langchain-multimodal-content.md).
+    Chosen over the newer `content.py`-native shape (`create_image_block`
+    etc.) because `AgentProvider` is deliberately duck-typed with no
+    `langchain_core` import (see module docstring): this shape needs no
+    import, has the longest support tail across the
+    langchain-openai/anthropic/google-genai integrations, and degrades
+    gracefully against a pre-1.0 `langchain_core` that predates the newer
+    shape entirely. Prefers inline `data` over `uri` when both are set,
+    matching the existing Gemini/OpenAI/Anthropic outbound translators.
+    """
+    block: dict[str, Any] = {"type": _block_kind(part.mime_type), "mime_type": part.mime_type}
+    if part.data is not None:
+        block["source_type"] = "base64"
+        block["data"] = part.data
+    else:
+        block["source_type"] = "url"
+        block["url"] = part.uri
+    return block
+
+
+def _turn_content(parts: list[Part]) -> str | list[dict[str, Any]]:
+    """A turn's parts -> `str` (text-only) or a list of LangChain content blocks.
+
+    `str` for an all-text turn keeps every existing text-only caller (a
+    plain `Runnable`/`ChatPromptTemplate` expecting a bare string) working
+    exactly as before. A turn with at least one `BinaryPart` becomes a list
+    of blocks instead, text and binary interleaved in original part order —
+    the shape LangChain's own `HumanMessage.content` accepts directly for
+    both the plain-`Runnable` and LangGraph `CompiledStateGraph` paths (see
+    issue #42's research doc).
+    """
+    if all(isinstance(part, TextPart) for part in parts):
+        return "".join(part.text for part in parts if isinstance(part, TextPart))
+    blocks: list[dict[str, Any]] = []
     for part in parts:
         if isinstance(part, TextPart):
-            texts.append(part.text)
+            blocks.append({"type": "text", "text": part.text})
         else:
-            raise ValueError(
-                "agent provider is text-only for v1; binary parts are not supported (see issue #27)"
-            )
-    return "".join(texts)
+            blocks.append(_binary_part_to_block(part))
+    return blocks
 
 
-def _to_agent_messages(request: NeutralGenerateRequest) -> list[tuple[str, str]]:
+def _to_agent_messages(
+    request: NeutralGenerateRequest,
+) -> list[tuple[str, str | list[dict[str, Any]]]]:
     """Turns/system -> `[(role, content), ...]` message tuples.
 
     This is the shape LangChain chat models and most `Runnable`s built from
     `ChatPromptTemplate` accept directly as `.invoke`/`.astream` input.
+    `content` is `str` for a text-only turn, or a list of content blocks
+    (text and/or binary) otherwise — see `_turn_content`.
     """
-    messages: list[tuple[str, str]] = []
+    messages: list[tuple[str, str | list[dict[str, Any]]]] = []
     if request.system:
-        messages.append(("system", _turn_text(request.system)))
-    messages.extend((turn.role, _turn_text(turn.parts)) for turn in request.turns)
+        messages.append(("system", _turn_content(request.system)))
+    messages.extend((turn.role, _turn_content(turn.parts)) for turn in request.turns)
     return messages
 
 
@@ -209,7 +258,7 @@ def _is_langgraph_compiled_graph(agent: Any) -> bool:
 
 
 async def _stream_langgraph_events(
-    agent: Any, messages: list[tuple[str, str]]
+    agent: Any, messages: list[tuple[str, str | list[dict[str, Any]]]]
 ) -> AsyncIterator[bytes]:
     """Stream a `CompiledStateGraph` via `stream_mode=["messages", "custom"]`.
 
@@ -250,7 +299,9 @@ async def _stream_langgraph_events(
 # --- invocation: duck-typed .astream -> .stream -> .ainvoke -> .invoke fallback chain ---
 
 
-async def _stream_text(agent: Any, messages: list[tuple[str, str]]) -> AsyncIterator[str]:
+async def _stream_text(
+    agent: Any, messages: list[tuple[str, str | list[dict[str, Any]]]]
+) -> AsyncIterator[str]:
     """Call whichever of the agent's methods exists, in order of streaming fidelity.
 
     `.astream` is preferred (native async streaming, one chunk in -> one

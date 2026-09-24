@@ -55,16 +55,104 @@ def test_to_agent_messages_joins_multiple_text_parts_in_one_turn() -> None:
     assert _to_agent_messages(request) == [("user", "ab")]
 
 
-def test_to_agent_messages_rejects_binary_parts() -> None:
+def test_to_agent_messages_emits_inline_binary_as_base64_content_block() -> None:
     request = NeutralGenerateRequest(
         turns=[Turn(role="user", parts=[BinaryPart(mime_type="image/png", data="Zm9v")])]
     )
-    try:
-        _to_agent_messages(request)
-    except ValueError as exc:
-        assert "text-only" in str(exc)
-    else:
-        raise AssertionError("expected ValueError for a binary part")
+    assert _to_agent_messages(request) == [
+        (
+            "user",
+            [{"type": "image", "source_type": "base64", "data": "Zm9v", "mime_type": "image/png"}],
+        )
+    ]
+
+
+def test_to_agent_messages_emits_by_reference_binary_as_url_content_block() -> None:
+    request = NeutralGenerateRequest(
+        turns=[
+            Turn(
+                role="user",
+                parts=[BinaryPart(mime_type="image/png", uri="https://example.com/img.png")],
+            )
+        ]
+    )
+    assert _to_agent_messages(request) == [
+        (
+            "user",
+            [
+                {
+                    "type": "image",
+                    "source_type": "url",
+                    "url": "https://example.com/img.png",
+                    "mime_type": "image/png",
+                }
+            ],
+        )
+    ]
+
+
+def test_to_agent_messages_prefers_inline_data_when_both_data_and_uri_present() -> None:
+    request = NeutralGenerateRequest(
+        turns=[
+            Turn(
+                role="user",
+                parts=[
+                    BinaryPart(
+                        mime_type="image/png", data="Zm9v", uri="https://example.com/img.png"
+                    )
+                ],
+            )
+        ]
+    )
+    block = _to_agent_messages(request)[0][1][0]
+    assert block["source_type"] == "base64"
+    assert block["data"] == "Zm9v"
+
+
+def test_to_agent_messages_interleaves_text_and_binary_blocks_in_part_order() -> None:
+    request = NeutralGenerateRequest(
+        turns=[
+            Turn(
+                role="user",
+                parts=[
+                    TextPart(text="look at this:"),
+                    BinaryPart(mime_type="image/png", data="Zm9v"),
+                    TextPart(text="what is it?"),
+                ],
+            )
+        ]
+    )
+    assert _to_agent_messages(request) == [
+        (
+            "user",
+            [
+                {"type": "text", "text": "look at this:"},
+                {
+                    "type": "image",
+                    "source_type": "base64",
+                    "data": "Zm9v",
+                    "mime_type": "image/png",
+                },
+                {"type": "text", "text": "what is it?"},
+            ],
+        )
+    ]
+
+
+def test_to_agent_messages_maps_mime_type_to_block_kind() -> None:
+    request = NeutralGenerateRequest(
+        turns=[
+            Turn(role="user", parts=[BinaryPart(mime_type="audio/wav", data="Zm9v")]),
+        ]
+    )
+    assert _to_agent_messages(request)[0][1][0]["type"] == "audio"
+
+    request = NeutralGenerateRequest(
+        turns=[
+            Turn(role="user", parts=[BinaryPart(mime_type="application/pdf", data="Zm9v")]),
+        ]
+    )
+    assert _to_agent_messages(request)[0][1][0]["type"] == "file"
 
 
 # --- streaming: duck-typed .astream / .stream / .ainvoke / .invoke fallback chain ---
@@ -166,15 +254,20 @@ async def test_stream_never_raises_on_unsupported_agent_shape() -> None:
     assert "error" in _payload(chunks[0])
 
 
-async def test_stream_never_raises_on_binary_part_rejects_with_neutral_error() -> None:
+async def test_stream_passes_binary_part_through_to_the_wrapped_agent() -> None:
     request = NeutralGenerateRequest(
         turns=[Turn(role="user", parts=[BinaryPart(mime_type="image/png", data="Zm9v")])]
     )
-    provider = AgentProvider(name="my-agent", agent=_AStreamAgent())
+    agent = _AStreamAgent()
+    provider = AgentProvider(name="my-agent", agent=agent)
     chunks = [c async for c in provider.stream("default", request)]
-    assert len(chunks) == 1
-    payload = _payload(chunks[0])
-    assert payload["error"]["type"] == "agent_input_unsupported"
+    assert _payload(chunks[0])["delta"]["parts"][0]["text"] == "Hel"
+    assert agent.received == [
+        (
+            "user",
+            [{"type": "image", "source_type": "base64", "data": "Zm9v", "mime_type": "image/png"}],
+        )
+    ]
 
 
 # --- intermediate_step: the public contract for a node's custom stream_writer payload ---
