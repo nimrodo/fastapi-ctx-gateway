@@ -115,8 +115,12 @@ async def stream_generate_content(
             request = request.model_copy(update={"turns": prune_result.turns})
             metrics.prune_triggered.inc()
 
-    cache_eligible = semantic_cache is not None and semantic_cache.is_eligible(
-        tools=request.tools, generation_config=request.generation_config
+    cache_eligible = (
+        semantic_cache is not None
+        and provider.cache_enabled
+        and semantic_cache.is_eligible(
+            tools=request.tools, generation_config=request.generation_config
+        )
     )
     if cache_eligible:
         assert semantic_cache is not None  # narrowed by cache_eligible
