@@ -51,6 +51,7 @@ build-backend = "uv_build"
 dev = [
     "anthropic>=1.2",
     "fakeredis>=2.37.1",
+    "langgraph>=1.2.12",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.7.7",
     "mkdocstrings[python]>=1.0.6",

@@ -4,7 +4,11 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi_ctx_gateway.providers.agent import AgentProvider, _to_agent_messages
+from fastapi_ctx_gateway.providers.agent import (
+    AgentProvider,
+    _to_agent_messages,
+    intermediate_step,
+)
 from fastapi_ctx_gateway.schemas.neutral import (
     BinaryPart,
     NeutralGenerateRequest,
@@ -171,6 +175,88 @@ async def test_stream_never_raises_on_binary_part_rejects_with_neutral_error() -
     assert len(chunks) == 1
     payload = _payload(chunks[0])
     assert payload["error"]["type"] == "agent_input_unsupported"
+
+
+# --- intermediate_step: the public contract for a node's custom stream_writer payload ---
+
+
+def test_intermediate_step_carries_label_and_data() -> None:
+    step = intermediate_step(label="tool_call", data={"tool": "search"})
+    assert step.label == "tool_call"
+    assert step.data == {"tool": "search"}
+
+
+# --- streaming: LangGraph CompiledStateGraph path (intermediate events) ---
+
+
+def _fake_chat_graph(node_body):
+    """A minimal compiled StateGraph with one node, `node_body(state) -> dict`."""
+    from langgraph.graph import END, START, MessagesState, StateGraph
+
+    builder = StateGraph(MessagesState)
+    builder.add_node("n", node_body)
+    builder.add_edge(START, "n")
+    builder.add_edge("n", END)
+    return builder.compile()
+
+
+async def test_stream_translates_langgraph_intermediate_step_before_text() -> None:
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage
+    from langgraph.config import get_stream_writer
+
+    model = GenericFakeChatModel(messages=iter([AIMessage(content="Hello")]))
+
+    async def node(state):
+        writer = get_stream_writer()
+        writer(intermediate_step(label="tool_call", data={"tool": "search"}))
+        chunks = [c async for c in model.astream(state["messages"])]
+        return {"messages": chunks}
+
+    provider = AgentProvider(name="my-agent", agent=_fake_chat_graph(node))
+    payloads = [_payload(c) async for c in provider.stream("default", _request())]
+
+    intermediate_payloads = [p for p in payloads if p.get("intermediate")]
+    assert len(intermediate_payloads) == 1
+    assert intermediate_payloads[0]["intermediate"] == {
+        "label": "tool_call",
+        "data": {"tool": "search"},
+    }
+    # the intermediate event precedes the text delta the node emitted it before
+    kinds = ["intermediate" if p.get("intermediate") else list(p)[0] for p in payloads]
+    assert kinds.index("intermediate") < kinds.index("delta")
+
+
+async def test_stream_drops_malformed_langgraph_custom_payload(caplog) -> None:
+    from langgraph.config import get_stream_writer
+
+    async def node(state):
+        writer = get_stream_writer()
+        writer({"not": "an intermediate_step()"})
+        return {"messages": [("assistant", "Hello")]}
+
+    provider = AgentProvider(name="my-agent", agent=_fake_chat_graph(node))
+    with caplog.at_level("WARNING"):
+        payloads = [_payload(c) async for c in provider.stream("default", _request())]
+    assert not any(p.get("intermediate") for p in payloads)
+    assert "dropping" in caplog.text.lower()
+
+
+async def test_stream_translates_langgraph_text_deltas() -> None:
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage
+
+    model = GenericFakeChatModel(messages=iter([AIMessage(content="Hello")]))
+
+    async def node(state):
+        chunks = [c async for c in model.astream(state["messages"])]
+        return {"messages": chunks}
+
+    provider = AgentProvider(name="my-agent", agent=_fake_chat_graph(node))
+    chunks = [c async for c in provider.stream("default", _request())]
+    texts = [_payload(c)["delta"]["parts"][0]["text"] for c in chunks[:-1]]
+    assert "".join(texts) == "Hello"
+    assert _payload(chunks[-1])["finish_reason"] == "stop"
 
 
 # --- defaults ---
