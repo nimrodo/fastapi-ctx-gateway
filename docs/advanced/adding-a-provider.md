@@ -7,6 +7,9 @@ See [ADR-0006](../adr/0006-neutral-schema-and-provider-abstraction.md) for why t
 !!! note "SDK-based providers"
     This walkthrough is the **raw-HTTP** path: borrow the pooled `httpx.AsyncClient`, POST the upstream, and split its SSE bytes with `providers/sse.py`. `AnthropicProvider` instead wraps the official `anthropic` SDK — typed events instead of byte framing, the SDK's own retry, an injected client mocked in tests instead of `respx`. If your upstream has a good async SDK, read [ADR-0007](../adr/0007-anthropic-sdk-provider.md) first; the `Provider` contract (neutral in, neutral SSE out, never raises) is identical either way.
 
+!!! note "No HTTP call at all?"
+    If what you're wiring up isn't a vendor's wire API but your own in-process object — a LangChain `Runnable`, a LangGraph graph — none of the steps below apply: no wire schema to model, no `Settings`/env-var credential, no `pyproject.toml` extra, no `ProviderSpec` entry. See [Registering your own agent](../tutorial/agent-provider.md) and `providers/agent.py` instead.
+
 ## The interface
 
 ```python

@@ -10,4 +10,6 @@
 
 ::: fastapi_ctx_gateway.providers.anthropic
 
+::: fastapi_ctx_gateway.providers.agent
+
 ::: fastapi_ctx_gateway.providers.sse
