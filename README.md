@@ -6,7 +6,7 @@ A context-aware agentic API gateway for LLM APIs (Gemini, OpenAI, and Anthropic 
 
 This README covers the essentials; the full docs (built with [MkDocs](mkdocs.yml)) go deeper. Everything below lives under [`docs/`](docs/), except the glossary.
 
-**Tutorial** — [Installation & quickstart](docs/tutorial/index.md) · [Your first request](docs/tutorial/first-request.md) · [Configuration](docs/tutorial/configuration.md) · [Rate limiting](docs/tutorial/rate-limiting.md) · [Context pruning](docs/tutorial/context-pruning.md) · [Semantic caching](docs/tutorial/semantic-caching.md) · [Circuit breaker](docs/tutorial/circuit-breaker.md) · [Observability](docs/tutorial/observability.md) · [Using it as a library](docs/tutorial/using-as-a-library.md)
+**Tutorial** — [Installation & quickstart](docs/tutorial/index.md) · [Your first request](docs/tutorial/first-request.md) · [Configuration](docs/tutorial/configuration.md) · [Rate limiting](docs/tutorial/rate-limiting.md) · [Context pruning](docs/tutorial/context-pruning.md) · [Semantic caching](docs/tutorial/semantic-caching.md) · [Circuit breaker](docs/tutorial/circuit-breaker.md) · [Observability](docs/tutorial/observability.md) · [Using it as a library](docs/tutorial/using-as-a-library.md) · [Registering your own agent](docs/tutorial/agent-provider.md)
 
 **Advanced** — [Custom vectorizer](docs/advanced/custom-vectorizer.md) · [Multi-tenant keys](docs/advanced/multi-tenant-keys.md) · [Deployment](docs/advanced/deployment.md) · [Extending pruning](docs/advanced/extending-pruning.md) · [Adding a provider](docs/advanced/adding-a-provider.md)
 
