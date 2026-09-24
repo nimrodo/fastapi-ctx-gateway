@@ -45,6 +45,7 @@ nav:
       - Circuit breaker: tutorial/circuit-breaker.md
       - Observability: tutorial/observability.md
       - Using it as a library: tutorial/using-as-a-library.md
+      - Registering your own agent: tutorial/agent-provider.md
   - Advanced:
       - Custom vectorizer: advanced/custom-vectorizer.md
       - Multi-tenant keys: advanced/multi-tenant-keys.md
