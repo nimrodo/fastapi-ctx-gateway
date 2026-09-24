@@ -7,6 +7,7 @@ from fastapi_ctx_gateway.schemas.neutral import (
     BinaryPart,
     Delta,
     FinishReason,
+    IntermediateStep,
     NeutralError,
     NeutralErrorEvent,
     NeutralGenerateRequest,
@@ -67,6 +68,34 @@ def test_stream_event_round_trip_with_finish_reason_and_usage() -> None:
     dumped = event.model_dump_json(exclude_none=True)
     restored = NeutralStreamEvent.model_validate_json(dumped)
     assert restored == event
+
+
+def test_stream_event_omits_intermediate_by_default() -> None:
+    """Gemini/OpenAI/Anthropic providers never set `intermediate`; it must not appear."""
+    event = NeutralStreamEvent(delta=Delta(role="assistant", parts=[TextPart(text="hi")]))
+    dumped = event.model_dump(exclude_none=True)
+    assert "intermediate" not in dumped
+
+
+def test_stream_event_round_trip_with_intermediate() -> None:
+    event = NeutralStreamEvent(
+        intermediate=IntermediateStep(label="tool_call", data={"name": "search", "args": {}})
+    )
+    dumped = event.model_dump_json(exclude_none=True)
+    restored = NeutralStreamEvent.model_validate_json(dumped)
+    assert restored == event
+
+
+def test_intermediate_step_label_is_optional() -> None:
+    step = IntermediateStep(data="raw payload")
+    assert step.label is None
+    assert step.data == "raw payload"
+
+
+def test_intermediate_step_data_can_be_arbitrary_json() -> None:
+    step = IntermediateStep(label="thought", data={"nested": [1, 2, {"three": 3}]})
+    dumped = step.model_dump()
+    assert dumped == {"label": "thought", "data": {"nested": [1, 2, {"three": 3}]}}
 
 
 def test_error_event_shape() -> None:
