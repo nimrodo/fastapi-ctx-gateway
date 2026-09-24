@@ -18,7 +18,9 @@ implemented here (see the map, issue #28).
 """
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import FastAPI
@@ -30,13 +32,53 @@ from fastapi_ctx_gateway.providers.sse import neutral_error_event
 from fastapi_ctx_gateway.schemas.neutral import (
     Delta,
     FinishReason,
+    IntermediateStep,
     NeutralGenerateRequest,
     NeutralStreamEvent,
     Part,
     TextPart,
 )
 
-__all__ = ["AgentProvider", "register_agent_provider"]
+__all__ = ["AgentProvider", "intermediate_step", "register_agent_provider"]
+
+logger = logging.getLogger(__name__)
+
+# `langgraph` stays a soft dependency: a plain-Runnable/duck-typed caller
+# never needs it installed. `CompiledStateGraph` is `None` when absent, and
+# `_is_langgraph_compiled_graph` treats that as "never a LangGraph object."
+try:
+    from langgraph.graph.state import CompiledStateGraph
+except ImportError:  # pragma: no cover - exercised by not installing langgraph
+    CompiledStateGraph = None  # type: ignore[assignment,misc]
+
+
+@dataclass(frozen=True)
+class _IntermediateStepPayload:
+    """The one shape `_stream_langgraph_events` recognizes on a "custom" chunk.
+
+    Deliberately a frozen dataclass, not a bare dict: a developer's own
+    `get_stream_writer()` payload could easily be a dict for unrelated
+    reasons, and a dict-shape sniff (e.g. "has a 'label' key") would guess at
+    intent instead of requiring an explicit, unambiguous opt-in.
+    """
+
+    label: str | None
+    data: Any
+
+
+def intermediate_step(label: str | None, data: Any) -> _IntermediateStepPayload:
+    """Build the payload a LangGraph node passes to `get_stream_writer()`.
+
+    Call this from inside a node to surface a custom step on the gateway's
+    `intermediate` SSE field::
+
+        writer = get_stream_writer()
+        writer(intermediate_step(label="tool_call", data={"tool": "search"}))
+
+    A `writer()` payload that isn't produced by this helper is dropped (with
+    a logged warning), not guessed at — see `_stream_langgraph_events`.
+    """
+    return _IntermediateStepPayload(label=label, data=data)
 
 
 class AgentProvider(Provider):
@@ -72,8 +114,12 @@ class AgentProvider(Provider):
             yield neutral_error_event(str(exc), None, error_type="agent_input_unsupported")
             return
         try:
-            async for text in _stream_text(self._agent, messages):
-                yield _text_event(text)
+            if _is_langgraph_compiled_graph(self._agent):
+                async for event in _stream_langgraph_events(self._agent, messages):
+                    yield event
+            else:
+                async for text in _stream_text(self._agent, messages):
+                    yield _text_event(text)
             yield _final_event()
         except Exception as exc:  # noqa: BLE001 - stream() must never raise, see Provider
             yield neutral_error_event(str(exc), None, error_type="agent_error")
@@ -152,6 +198,55 @@ def _to_agent_messages(request: NeutralGenerateRequest) -> list[tuple[str, str]]
     return messages
 
 
+# --- invocation: LangGraph CompiledStateGraph path (intermediate events) ---
+
+
+def _is_langgraph_compiled_graph(agent: Any) -> bool:
+    """True only for a compiled LangGraph graph; always False if `langgraph` isn't installed."""
+    if CompiledStateGraph is None:
+        return False
+    return isinstance(agent, CompiledStateGraph)
+
+
+async def _stream_langgraph_events(
+    agent: Any, messages: list[tuple[str, str]]
+) -> AsyncIterator[bytes]:
+    """Stream a `CompiledStateGraph` via `stream_mode=["messages", "custom"]`.
+
+    "messages"-mode chunks are `(message_chunk, metadata)` pairs (one per
+    token/chunk a chat model inside a node streams); translated the same way
+    the duck-typed path translates any chunk, via `_extract_text`. Metadata
+    is discarded — the neutral contract has no slot for it.
+
+    "custom"-mode chunks are whatever a node passed to `get_stream_writer()`.
+    Only an `intermediate_step()` payload is recognized and forwarded; any
+    other shape is a mistake the gateway won't guess the intent of, so it's
+    dropped with a logged warning rather than passed through opaque or
+    raised (a malformed emission from one node shouldn't kill a stream the
+    rest of the graph is otherwise producing correctly).
+
+    Note: an open LangGraph bug (langchain-ai/langgraph#6447) drops custom
+    events emitted from *async tools* (as opposed to graph nodes) under
+    `astream(stream_mode="custom")` — not worked around here.
+    """
+    stream = agent.astream({"messages": messages}, stream_mode=["messages", "custom"])
+    async for mode, payload in stream:
+        if mode == "messages":
+            message_chunk, _metadata = payload
+            text = _extract_text(message_chunk)
+            if text:
+                yield _text_event(text)
+        elif mode == "custom":
+            if isinstance(payload, _IntermediateStepPayload):
+                yield _intermediate_event(payload)
+            else:
+                logger.warning(
+                    "dropping langgraph custom stream payload not built with "
+                    "intermediate_step(): %r",
+                    payload,
+                )
+
+
 # --- invocation: duck-typed .astream -> .stream -> .ainvoke -> .invoke fallback chain ---
 
 
@@ -227,4 +322,9 @@ def _text_event(text: str) -> bytes:
 
 def _final_event() -> bytes:
     event = NeutralStreamEvent(finish_reason=FinishReason.STOP)
+    return f"data: {event.model_dump_json(exclude_none=True)}\n\n".encode()
+
+
+def _intermediate_event(step: "_IntermediateStepPayload") -> bytes:
+    event = NeutralStreamEvent(intermediate=IntermediateStep(label=step.label, data=step.data))
     return f"data: {event.model_dump_json(exclude_none=True)}\n\n".encode()
