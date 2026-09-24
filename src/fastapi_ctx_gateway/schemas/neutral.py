@@ -16,6 +16,7 @@ __all__ = [
     "Delta",
     "FinishReason",
     "GenerationConfig",
+    "IntermediateStep",
     "NeutralError",
     "NeutralErrorEvent",
     "NeutralGenerateRequest",
@@ -105,12 +106,26 @@ class Usage(_NeutralModel):
     total_tokens: int | None = None
 
 
+class IntermediateStep(_NeutralModel):
+    """A developer-yielded custom event, opaque to the gateway.
+
+    Populated only by the agent provider (LangChain/LangGraph), which streams
+    step payloads the gateway doesn't and shouldn't interpret. Deliberately
+    not shaped as a general tool-call representation: `data` is whatever the
+    developer's graph/runnable yielded, passed through as-is.
+    """
+
+    label: str | None = None
+    data: Any
+
+
 class NeutralStreamEvent(_NeutralModel):
     """One SSE event on the gateway's streamed response."""
 
     delta: Delta | None = None
     finish_reason: FinishReason | None = None
     usage: Usage | None = None
+    intermediate: IntermediateStep | None = None
 
 
 class NeutralError(_NeutralModel):
