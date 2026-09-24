@@ -59,6 +59,16 @@ def test_settings_env_override(monkeypatch) -> None:
     assert settings.redis_url == "redis://example:1234"
 
 
+def test_settings_tenant_api_keys_masked_in_repr(monkeypatch) -> None:
+    """Regression for #24: tenant_api_keys must mask like the upstream provider keys."""
+    monkeypatch.setenv("GATEWAY_GEMINI_UPSTREAM_KEY", "test-key")
+    monkeypatch.setenv("GATEWAY_TENANT_API_KEYS", '{"secret-tenant-key":"test-tenant"}')
+    settings = Settings()
+    assert "secret-tenant-key" not in repr(settings.tenant_api_keys)
+    (secret_key,) = settings.tenant_api_keys
+    assert secret_key.get_secret_value() == "secret-tenant-key"
+
+
 def test_settings_requires_tenant_api_keys(monkeypatch) -> None:
     """No tenants configured means every request would 401 anyway (see auth.py) —
     boot should fail loudly instead of shipping a gateway nothing can call.

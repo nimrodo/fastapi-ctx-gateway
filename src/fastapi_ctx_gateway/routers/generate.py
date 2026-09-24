@@ -99,7 +99,7 @@ async def stream_generate_content(
                 if settings.prompt_injection_mode == "block":
                     raise PromptInjectionDetectedError
 
-        rate_limit_key = f"{tenant.api_key}:{model}"
+        rate_limit_key = f"{tenant.api_key.get_secret_value()}:{model}"
         estimated_tokens = _token_estimator.estimate(turns=request.turns, system=request.system)
         decision = await rate_limiter.check(rate_limit_key, estimated_tokens)
         if not decision.allowed:
