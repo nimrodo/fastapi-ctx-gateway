@@ -23,7 +23,7 @@ Calling an LLM provider directly from every client leaves real savings on the ta
 ## A minimal example
 
 ```python
-from fastapi_ctx_gateway import create_app, Settings
+from fastapi_ctx_gateway import Settings, create_app
 
 app = create_app(Settings())
 ```

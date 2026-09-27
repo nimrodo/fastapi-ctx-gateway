@@ -15,6 +15,7 @@ async def _aembed(self, content: str, **kwargs) -> list[float]: ...
 
 ## Wiring in a real model
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 import onnxruntime as ort
 from fastapi_ctx_gateway.cache import OnnxVectorizer
@@ -41,6 +42,8 @@ from redisvl.utils.vectorize.base import BaseVectorizer
 
 
 class MyVectorizer(BaseVectorizer):
+    """Embeds text via a hosted API instead of the local ONNX runtime."""
+
     model: str = "my-model"
 
     def _embed(self, content: str, **kwargs) -> list[float]: ...

@@ -32,6 +32,7 @@ real and both are still accepted; they differ in field names.
 `ImageContentBlock` (and the structurally-identical `AudioContentBlock`,
 `VideoContentBlock`, `FileContentBlock`) is a `TypedDict`:
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 class ImageContentBlock(TypedDict):
     type: Literal["image"]  # discriminator
@@ -83,6 +84,7 @@ Before the 1.0 `content.py` blocks, LangChain (from ~mid-2024, the "multimodalit
 push in 0.3) already had a *different* vendor-neutral shape, keyed by `source_type`
 rather than having `url`/`base64` as sibling keys directly:
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 # inline base64
 {"type": "image", "source_type": "base64", "data": "<b64>", "mime_type": "image/png"}
@@ -133,6 +135,7 @@ chat model would accept directly; a `HumanMessage.content` list containing a mix
 blocks is exactly what's shown in LangGraph's own docs example for a graph's message
 state:
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 HumanMessage(
     content=[
@@ -229,6 +232,7 @@ shape most existing chat-model integrations have supported the *longest*, so it'
 the safer bet for an `AgentProvider` that wraps an arbitrary, version-unpinned,
 duck-typed object we don't control:
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 # BinaryPart(data=...) -> inline
 {"type": part.kind, "source_type": "base64", "data": part.data, "mime_type": part.mime_type}
@@ -242,6 +246,7 @@ family).** This is the forward-looking, officially-current shape
 (no `source_type` indirection), and is what `.content_blocks` normalizes *to*, not
 *from*:
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 # inline
 {"type": part.kind, "base64": part.data, "mime_type": part.mime_type}
