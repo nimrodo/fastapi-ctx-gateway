@@ -7,7 +7,7 @@
 There's no module-level app instance anywhere in the package. Every caller builds its own via [`create_app()`][fastapi_ctx_gateway.app.create_app]:
 
 ```python
-from fastapi_ctx_gateway import create_app, Settings
+from fastapi_ctx_gateway import Settings, create_app
 
 app = create_app(Settings())
 ```
@@ -16,7 +16,8 @@ This means you can construct multiple independently-configured instances — one
 
 ```python
 from fastapi import FastAPI
-from fastapi_ctx_gateway import create_app, Settings
+
+from fastapi_ctx_gateway import Settings, create_app
 
 parent = FastAPI()
 parent.mount("/gateway", create_app(Settings(gemini_upstream_key="...")))
@@ -26,6 +27,7 @@ parent.mount("/gateway", create_app(Settings(gemini_upstream_key="...")))
 
 Every reusable piece is importable on its own, with no FastAPI or routing dependency pulled in:
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 from fastapi_ctx_gateway import (
     TokenBudgetPruner,
@@ -40,9 +42,10 @@ from fastapi_ctx_gateway import (
 For example, using the pruner completely standalone:
 
 ```python
+from fastapi_ctx_gateway.schemas.gemini import Content, Part
+
 from fastapi_ctx_gateway import TokenBudgetPruner
 from fastapi_ctx_gateway.config import TokenBudgetConfig
-from fastapi_ctx_gateway.schemas.gemini import Content, Part
 
 pruner = TokenBudgetPruner(TokenBudgetConfig(default=1000))
 result = pruner.prune(

@@ -45,7 +45,7 @@ Health check: `GET /healthz`. Prometheus metrics (gateway-specific counters plus
 ## Using it as a library
 
 ```python
-from fastapi_ctx_gateway import create_app, Settings
+from fastapi_ctx_gateway import Settings, create_app
 
 app = create_app(Settings())  # or mount as a sub-app, or override Settings for tests
 ```

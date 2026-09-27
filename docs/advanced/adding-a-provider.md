@@ -12,6 +12,7 @@ See [ADR-0006](../adr/0006-neutral-schema-and-provider-abstraction.md) for why t
 
 ## The interface
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 class Provider(ABC):
     name: str

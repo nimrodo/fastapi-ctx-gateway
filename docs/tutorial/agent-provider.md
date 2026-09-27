@@ -2,6 +2,7 @@
 
 `GeminiProvider`, `OpenAIProvider`, and `AnthropicProvider` all speak HTTP to a vendor upstream. The **agent provider** is different: it wraps an in-process Python object you've already built — a LangChain `Runnable`, a LangGraph `CompiledStateGraph`, or anything shaped like one — and puts it behind the same route shape and pipeline (rate limiting, pruning, circuit breaker, cache) every other provider gets. There's no wire format to translate and no upstream credential, so it isn't registered via `Settings`/env vars like the vendor providers — you call [`register_agent_provider()`][fastapi_ctx_gateway.providers.agent.register_agent_provider] directly against the app object, any time after [`create_app()`][fastapi_ctx_gateway.app.create_app] returns:
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 from fastapi_ctx_gateway import Settings, create_app
 from fastapi_ctx_gateway.providers.agent import register_agent_provider
@@ -60,10 +61,12 @@ Register a compiled LangGraph graph (`CompiledStateGraph`) and the adapter switc
 
 ```python
 from langgraph.config import get_stream_writer
+
 from fastapi_ctx_gateway.providers.agent import intermediate_step
 
 
 async def my_node(state):
+    """Surface an intermediate tool-call event to the client mid-stream."""
     writer = get_stream_writer()
     writer(intermediate_step(label="tool_call", data={"tool": "search", "query": "..."}))
     ...

@@ -4,6 +4,7 @@
 
 ## Internals
 
+<!-- pytest-ruff-markdown: skip -->
 ```python
 class TokenBudgetPruner:
     def prune(self, contents, system_instruction, model) -> PruneResult: ...
